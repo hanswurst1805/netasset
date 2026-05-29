@@ -49,7 +49,7 @@ cmd_start() {
         --health-cmd "pg_isready -U netasset" \
         --health-interval 10s \
         --health-retries 5 \
-        pgvector/pgvector:pg16
+        docker.io/pgvector/pgvector:pg16
 
     echo "==> Warte auf Datenbank..."
     for i in $(seq 1 30); do
@@ -68,7 +68,7 @@ cmd_start() {
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
         -v netasset-caddy-data:/data \
         -v netasset-caddy-config:/config \
-        caddy:2-alpine
+        docker.io/caddy:2-alpine
 
     echo ""
     echo "==> Migrationen..."
