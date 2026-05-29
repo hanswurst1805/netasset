@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom'
-import { Server, ShieldAlert, MessageSquare, Workflow } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut } from 'lucide-react'
+import { api } from '../api/client'
 
 const nav = [
   { to: '/assets',    icon: Server,        label: 'Assets' },
@@ -9,6 +10,13 @@ const nav = [
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
+
+  function logout() {
+    api.auth.logout()
+    navigate('/login')
+  }
+
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
       {/* Sidebar */}
@@ -35,6 +43,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </NavLink>
           ))}
         </nav>
+        <div className="p-2 border-t border-gray-800 space-y-1">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                isActive ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100'
+              }`
+            }
+          >
+            <Settings size={16} /> Einstellungen
+          </NavLink>
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-100 transition-colors"
+          >
+            <LogOut size={16} /> Abmelden
+          </button>
+        </div>
       </aside>
 
       {/* Main */}

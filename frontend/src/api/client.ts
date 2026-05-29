@@ -1,15 +1,39 @@
 const BASE = '/api/v1'
+const AUTH = '/auth'
 
-async function req<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json', ...opts?.headers },
-    ...opts,
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+// ---------------------------------------------------------------------------
+// HTTP-Helper
+// ---------------------------------------------------------------------------
+
+function getToken() {
+  return localStorage.getItem('token')
+}
+
+async function req<T>(path: string, opts?: RequestInit & { auth?: boolean }): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(opts?.headers as Record<string, string>),
+  }
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch((opts?.auth ? AUTH : BASE) + path, { ...opts, headers })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/login'
+    throw new Error('Nicht authentifiziert')
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail ?? `${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
+// ---------------------------------------------------------------------------
 // Types
+// ---------------------------------------------------------------------------
+
 export interface Asset {
   id: string
   hostname: string | null
@@ -84,8 +108,59 @@ export interface CVERisk {
   top_cves: { cve_id: string; risk_score: number; risk_level: string }[]
 }
 
+export interface User {
+  id: string
+  username: string
+  email: string | null
+  role: string
+  allowed_tags: string[]
+  is_active: boolean
+}
+
+export interface APIKey {
+  id: string
+  name: string
+  key_prefix: string
+  allowed_tags: string[] | null
+  is_active: boolean
+  last_used_at: string | null
+  raw_key?: string
+}
+
+// ---------------------------------------------------------------------------
 // API calls
+// ---------------------------------------------------------------------------
+
 export const api = {
+  auth: {
+    login: async (username: string, password: string) => {
+      const body = new URLSearchParams({ username, password })
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      })
+      if (!res.ok) throw new Error('Login fehlgeschlagen')
+      const data = await res.json()
+      localStorage.setItem('token', data.access_token)
+      localStorage.setItem('role', data.role)
+      localStorage.setItem('tags', JSON.stringify(data.allowed_tags))
+      return data
+    },
+    me: () => req<User>('/me', { auth: true }),
+    logout: () => { localStorage.clear() },
+    users: {
+      list: () => req<User[]>('/users', { auth: true }),
+      create: (body: object) => req<User>('/users', { auth: true, method: 'POST', body: JSON.stringify(body) }),
+      update: (id: string, body: object) => req<User>(`/users/${id}`, { auth: true, method: 'PUT', body: JSON.stringify(body) }),
+      delete: (id: string) => req<void>(`/users/${id}`, { auth: true, method: 'DELETE' }),
+    },
+    apiKeys: {
+      list: () => req<APIKey[]>('/apikeys', { auth: true }),
+      create: (body: object) => req<APIKey>('/apikeys', { auth: true, method: 'POST', body: JSON.stringify(body) }),
+      revoke: (id: string) => req<void>(`/apikeys/${id}`, { auth: true, method: 'DELETE' }),
+    },
+  },
   assets: {
     list: (params?: Record<string, string>) =>
       req<Asset[]>('/assets?' + new URLSearchParams(params)),
@@ -105,7 +180,6 @@ export const api = {
   },
   processes: {
     list: () => req<Process[]>('/processes'),
-    get: (id: string) => req<Process>(`/processes/${id}`),
     risk: (id: string) => req<CVERisk>(`/processes/${id}/cve-risk`),
     assets: (id: string) => req<any[]>(`/processes/${id}/assets`),
   },

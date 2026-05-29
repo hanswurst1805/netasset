@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     #   openai/gpt-4o
     #   google/gemini-2.0-flash-001
 
+    # Auth
+    jwt_secret: str = "CHANGE_ME_IN_PRODUCTION_USE_RANDOM_32_CHARS"
+    jwt_expire_hours: int = 8
+    initial_admin_password: str = "changeme"  # Wird beim ersten Start gesetzt
+
     # Risk-Schwellwerte
     risk_high_threshold: float = 7.0
     risk_medium_threshold: float = 4.0

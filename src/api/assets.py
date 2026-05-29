@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
 from src.models.all_models import Asset
 
@@ -75,19 +76,28 @@ async def list_assets(
     limit: int = Query(100, le=500),
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
 ):
+    from sqlalchemy import func as sqlfunc
     stmt = select(Asset).where(Asset.is_active == is_active)
     if asset_type:
         stmt = stmt.where(Asset.asset_type == asset_type)
     if exposure_level:
         stmt = stmt.where(Asset.exposure_level == exposure_level)
+    # Tag-basierte Zugriffskontrolle
+    if allowed := ctx.filter_tags():
+        stmt = stmt.where(Asset.tags.overlap(allowed))
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
     return result.scalars().all()
 
 
 @router.post("", response_model=AssetOut, status_code=201)
-async def create_asset(body: AssetCreate, session: AsyncSession = Depends(get_session)):
+async def create_asset(
+    body: AssetCreate,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     asset = Asset(**body.model_dump(exclude_none=True))
     session.add(asset)
     await session.flush()
@@ -96,10 +106,18 @@ async def create_asset(body: AssetCreate, session: AsyncSession = Depends(get_se
 
 
 @router.get("/{asset_id}", response_model=AssetOut)
-async def get_asset(asset_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def get_asset(
+    asset_id: uuid.UUID,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     asset = await session.get(Asset, asset_id)
     if not asset:
         raise HTTPException(404, f"Asset {asset_id} nicht gefunden")
+    # Tag-Check
+    if allowed := ctx.filter_tags():
+        if not asset.tags or not set(asset.tags) & set(allowed):
+            raise HTTPException(403, "Kein Zugriff auf dieses Asset")
     return asset
 
 
@@ -107,24 +125,33 @@ async def get_asset(asset_id: uuid.UUID, session: AsyncSession = Depends(get_ses
 async def update_asset(
     asset_id: uuid.UUID,
     body: AssetUpdate,
+    ctx: AuthContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     asset = await session.get(Asset, asset_id)
     if not asset:
         raise HTTPException(404, f"Asset {asset_id} nicht gefunden")
-
+    if allowed := ctx.filter_tags():
+        if not asset.tags or not set(asset.tags) & set(allowed):
+            raise HTTPException(403, "Kein Zugriff auf dieses Asset")
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(asset, field, value)
-
     await session.flush()
     await session.refresh(asset)
     return asset
 
 
 @router.delete("/{asset_id}", status_code=204)
-async def deactivate_asset(asset_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
+async def deactivate_asset(
+    asset_id: uuid.UUID,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
     asset = await session.get(Asset, asset_id)
     if not asset:
         raise HTTPException(404, f"Asset {asset_id} nicht gefunden")
+    if allowed := ctx.filter_tags():
+        if not asset.tags or not set(asset.tags) & set(allowed):
+            raise HTTPException(403, "Kein Zugriff auf dieses Asset")
     asset.is_active = False
     await session.flush()
