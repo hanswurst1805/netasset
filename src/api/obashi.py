@@ -1,4 +1,13 @@
-"""OBASHI-Struktur API – liefert den vollständigen Schichten-Baum eines Prozesses."""
+"""OBASHI-Struktur API – liefert den vollständigen Schichten-Baum eines Prozesses.
+
+Korrekte OBASHI-Schichten:
+  O – Owners:         Personen / Teams / Abteilungen
+  B – Business:       Geschäftsprozesse / Services
+  A – Application:    Fachliche Anwendungen (Webshop, CRM, ERP) – KEINE Software-Pakete
+  S – System:         OS + Middleware + Schlüssel-Software (aus SBOM)
+  H – Hardware:       Physische / Virtuelle Maschinen (Assets)
+  I – Infrastructure: Netzwerk, Exposure, Ports, Firewall
+"""
 
 from __future__ import annotations
 
@@ -13,22 +22,31 @@ from sqlalchemy.orm import selectinload
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
-from src.models.all_models import Asset, BusinessProcess, ProcessAsset, SBOMEntry
-from src.models.auth import User
+from src.models.all_models import (
+    Application, Asset, BusinessProcess, Owner, ProcessAsset, SBOMEntry
+)
 
 router = APIRouter()
 
+# System-relevante Pakete für S-Layer (alles andere im SBOM wird weggefiltert)
+SYSTEM_PKG_NAMES = {
+    "nginx", "apache2", "httpd", "lighttpd",
+    "postgresql", "mysql", "mariadb", "sqlite3", "redis", "mongodb",
+    "openssh-server", "sshd", "openssl", "libssl",
+    "docker", "containerd", "podman",
+    "python3", "python", "java", "openjdk", "nodejs", "node", "ruby",
+    "php", "php-fpm",
+    "kernel", "linux-image",
+    "haproxy", "traefik", "envoy",
+}
 
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
 
 class OBASHINode(BaseModel):
     id: str
     label: str
     sublabel: Optional[str] = None
-    layer: str          # O B A S H I
-    meta: dict = {}     # beliebige Zusatzinfos
+    layer: str
+    meta: dict = {}
 
 
 class OBASHIEdge(BaseModel):
@@ -43,19 +61,13 @@ class OBASHIDiagram(BaseModel):
     edges: list[OBASHIEdge]
 
 
-# ---------------------------------------------------------------------------
-# Endpunkt
-# ---------------------------------------------------------------------------
-
 @router.get("/processes/{process_id}/obashi", response_model=OBASHIDiagram)
 async def get_obashi(
     process_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     ctx: AuthContext = Depends(get_current_user),
 ):
-    """Liefert den OBASHI-Baum für einen Business-Prozess."""
-
-    # Prozess laden
+    # Prozess + Owner laden
     process = await session.get(BusinessProcess, process_id)
     if not process:
         raise HTTPException(404, f"Prozess {process_id} nicht gefunden")
@@ -64,19 +76,24 @@ async def get_obashi(
     edges: list[OBASHIEdge] = []
 
     # -----------------------------------------------------------------------
-    # O – Owner
+    # O – Owner des Prozesses
     # -----------------------------------------------------------------------
     owner_node_id = None
     if process.owner_id:
-        owner = await session.get(User, process.owner_id)
+        owner = await session.get(Owner, process.owner_id)
         if owner:
             owner_node_id = f"O-{owner.id}"
             nodes.append(OBASHINode(
                 id=owner_node_id,
-                label=owner.username,
-                sublabel=getattr(owner, "email", None),
+                label=owner.name,
+                sublabel=owner.team or owner.department,
                 layer="O",
-                meta={"role": "admin"},
+                meta={
+                    "email": owner.email,
+                    "team": owner.team,
+                    "department": owner.department,
+                    "role": owner.role,
+                },
             ))
 
     # -----------------------------------------------------------------------
@@ -90,25 +107,83 @@ async def get_obashi(
         layer="B",
         meta={
             "criticality": process.criticality,
-            "sla_rto": process.sla_rto_hours,
-            "sla_rpo": process.sla_rpo_hours,
+            "sla_rto_hours": process.sla_rto_hours,
+            "sla_rpo_hours": process.sla_rpo_hours,
             "description": process.description,
         },
     ))
-
     if owner_node_id:
         edges.append(OBASHIEdge(from_id=owner_node_id, to_id=b_node_id))
 
     # -----------------------------------------------------------------------
-    # Assets des Prozesses laden (H + S + A + I)
+    # A – Applications (fachliche Anwendungen aus DB)
     # -----------------------------------------------------------------------
-    stmt = (
-        select(ProcessAsset)
-        .where(ProcessAsset.process_id == process_id)
+    app_stmt = (
+        select(Application)
+        .where(Application.process_id == process_id, Application.is_active == True)
     )
-    pa_result = await session.execute(stmt)
-    process_assets = pa_result.scalars().all()
+    applications = (await session.execute(app_stmt)).scalars().all()
 
+    # App-Owner Node-IDs sammeln (Deduplizierung)
+    app_owner_ids: dict[uuid.UUID, str] = {}
+
+    for app in applications:
+        # App-spezifischer Owner (wenn abweichend vom Prozess-Owner)
+        if app.owner_id and app.owner_id != process.owner_id:
+            if app.owner_id not in app_owner_ids:
+                app_owner = await session.get(Owner, app.owner_id)
+                if app_owner:
+                    aon_id = f"O-{app_owner.id}"
+                    app_owner_ids[app.owner_id] = aon_id
+                    if aon_id not in [n.id for n in nodes]:
+                        nodes.append(OBASHINode(
+                            id=aon_id,
+                            label=app_owner.name,
+                            sublabel=app_owner.team,
+                            layer="O",
+                            meta={"email": app_owner.email, "team": app_owner.team},
+                        ))
+
+        a_node_id = f"A-{app.id}"
+        type_label = {
+            "web": "🌐 Web",
+            "api": "⚡ API",
+            "batch": "⚙ Batch",
+            "integration": "🔗 Integration",
+            "service": "🔧 Service",
+            "desktop": "🖥 Desktop",
+            "mobile": "📱 Mobile",
+        }.get(app.app_type or "", app.app_type or "App")
+
+        nodes.append(OBASHINode(
+            id=a_node_id,
+            label=app.name,
+            sublabel=f"{type_label}" + (f" · v{app.version}" if app.version else ""),
+            layer="A",
+            meta={
+                "app_type": app.app_type,
+                "version": app.version,
+                "url": app.url,
+                "criticality": app.criticality,
+                "asset_ids": app.asset_ids or [],
+                "description": app.description,
+            },
+        ))
+
+        # Kante: B → A
+        edges.append(OBASHIEdge(from_id=b_node_id, to_id=a_node_id))
+
+        # Kante: App-Owner → A (wenn vorhanden)
+        if app.owner_id and app.owner_id in app_owner_ids:
+            edges.append(OBASHIEdge(from_id=app_owner_ids[app.owner_id], to_id=a_node_id))
+
+    # -----------------------------------------------------------------------
+    # Assets des Prozesses → H + S + I
+    # -----------------------------------------------------------------------
+    pa_result = await session.execute(
+        select(ProcessAsset).where(ProcessAsset.process_id == process_id)
+    )
+    process_assets = pa_result.scalars().all()
     asset_ids = [pa.asset_id for pa in process_assets]
 
     if asset_ids:
@@ -129,7 +204,8 @@ async def get_obashi(
         nodes.append(OBASHINode(
             id=h_node_id,
             label=asset.hostname or str(asset.ip_address),
-            sublabel=f"{asset.manufacturer or ''} {asset.model or ''}".strip() or asset.asset_type,
+            sublabel=(f"{asset.manufacturer} {asset.model}".strip()
+                      if asset.manufacturer else asset.asset_type),
             layer="H",
             meta={
                 "asset_type": asset.asset_type,
@@ -137,84 +213,79 @@ async def get_obashi(
                 "mac_address": asset.mac_address,
                 "serial_number": asset.serial_number,
                 "location": asset.location,
-                "rack_id": asset.rack_id,
+                "firmware_version": asset.firmware_version,
             },
         ))
-        edges.append(OBASHIEdge(from_id=b_node_id, to_id=h_node_id))
+
+        # Kante: A → H (wenn App auf diesem Asset läuft)
+        linked_to_app = False
+        for app in applications:
+            if app.asset_ids and str(asset.id) in [str(aid) for aid in app.asset_ids]:
+                a_node_id = f"A-{app.id}"
+                edges.append(OBASHIEdge(from_id=a_node_id, to_id=h_node_id))
+                linked_to_app = True
+
+        # Fallback: B → H wenn keine App verknüpft
+        if not linked_to_app:
+            edges.append(OBASHIEdge(from_id=b_node_id, to_id=h_node_id))
 
         # -------------------------------------------------------------------
-        # S – System (OS-Layer)
+        # S – System (OS + relevante System-Software aus SBOM)
         # -------------------------------------------------------------------
         if asset.os_name:
             s_node_id = f"S-{asset.id}"
+
+            # System-relevante Pakete filtern
+            sys_pkgs = [
+                e for e in asset.sbom_entries
+                if e.pkg_name.lower().split("-")[0] in SYSTEM_PKG_NAMES
+                or e.pkg_name.lower() in SYSTEM_PKG_NAMES
+            ]
+            pkg_summary = ", ".join(
+                f"{e.pkg_name} {e.pkg_version}" for e in sys_pkgs[:4]
+            )
+            if len(sys_pkgs) > 4:
+                pkg_summary += f" +{len(sys_pkgs)-4}"
+
             nodes.append(OBASHINode(
                 id=s_node_id,
                 label=f"{asset.os_name} {asset.os_version or ''}".strip(),
-                sublabel=asset.os_arch,
+                sublabel=pkg_summary or "Kein SBOM",
                 layer="S",
                 meta={
                     "os_name": asset.os_name,
                     "os_version": asset.os_version,
                     "os_arch": asset.os_arch,
                     "firmware": asset.firmware_version,
-                    "pkg_count": len(asset.sbom_entries),
+                    "sbom_total": len(asset.sbom_entries),
+                    "system_packages": [
+                        {"name": e.pkg_name, "version": e.pkg_version, "cpe": e.cpe}
+                        for e in sys_pkgs
+                    ],
                 },
             ))
             edges.append(OBASHIEdge(from_id=h_node_id, to_id=s_node_id))
 
-            # ---------------------------------------------------------------
-            # A – Application (aus SBOM: nur Typ "application" oder top-Pakete)
-            # ---------------------------------------------------------------
-            apps = [
-                e for e in asset.sbom_entries
-                if e.pkg_type in ("application", "firmware") or
-                e.pkg_name.lower() in (
-                    "nginx", "apache2", "httpd", "postgresql", "mysql",
-                    "redis", "docker", "python3", "java", "nodejs", "node",
-                    "openssl", "openssh-server", "sshd",
-                )
-            ]
-            # Fallback: erste 5 Pakete wenn keine Apps erkannt
-            if not apps:
-                apps = asset.sbom_entries[:5]
-
-            for app in apps[:8]:  # max 8 pro Asset
-                a_node_id = f"A-{asset.id}-{app.pkg_name}"
-                nodes.append(OBASHINode(
-                    id=a_node_id,
-                    label=app.pkg_name,
-                    sublabel=app.pkg_version,
-                    layer="A",
-                    meta={
-                        "version": app.pkg_version,
-                        "type": app.pkg_type,
-                        "cpe": app.cpe,
-                        "purl": app.purl,
-                        "source": app.source,
-                    },
-                ))
-                edges.append(OBASHIEdge(from_id=s_node_id, to_id=a_node_id))
-
         # -------------------------------------------------------------------
-        # I – Infrastructure (Exposure + Ports)
+        # I – Infrastructure
         # -------------------------------------------------------------------
         i_node_id = f"I-{asset.id}"
-        port_summary = ""
-        if asset.open_ports:
-            ports = [str(p["port"]) for p in asset.open_ports[:5]]
-            port_summary = "Ports: " + ", ".join(ports)
-            if len(asset.open_ports) > 5:
-                port_summary += f" +{len(asset.open_ports)-5}"
+        ports = asset.open_ports or []
+        extern_ports = [p for p in ports if "internet" in p.get("reachable_from", [])]
+        port_str = ", ".join(str(p["port"]) for p in ports[:4])
+        if len(ports) > 4:
+            port_str += f" +{len(ports)-4}"
 
         nodes.append(OBASHINode(
             id=i_node_id,
             label=asset.exposure_level,
-            sublabel=port_summary or "Keine offenen Ports",
+            sublabel=f"Ports: {port_str}" if port_str else "Keine Ports",
             layer="I",
             meta={
                 "exposure_level": asset.exposure_level,
-                "open_ports": asset.open_ports or [],
-                "vlan": None,
+                "open_ports": ports,
+                "extern_ports": extern_ports,
+                "total_ports": len(ports),
             },
         ))
         edges.append(OBASHIEdge(from_id=h_node_id, to_id=i_node_id))

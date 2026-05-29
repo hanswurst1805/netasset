@@ -180,7 +180,44 @@ export const api = {
   },
   processes: {
     list: () => req<Process[]>('/processes'),
+    get: (id: string) => req<Process>(`/processes/${id}`),
+    update: (id: string, body: object) => req<Process>(`/processes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     risk: (id: string) => req<CVERisk>(`/processes/${id}/cve-risk`),
     assets: (id: string) => req<any[]>(`/processes/${id}/assets`),
   },
+  owners: {
+    list: () => req<Owner[]>('/owners'),
+    create: (body: object) => req<Owner>('/owners', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: object) => req<Owner>(`/owners/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string) => req<void>(`/owners/${id}`, { method: 'DELETE' }),
+  },
+  applications: {
+    list: (processId?: string) => req<AppEntity[]>(`/applications${processId ? '?process_id=' + processId : ''}`),
+    create: (body: object) => req<AppEntity>('/applications', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: object) => req<AppEntity>(`/applications/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string) => req<void>(`/applications/${id}`, { method: 'DELETE' }),
+  },
+}
+
+export interface Owner {
+  id: string
+  name: string
+  email: string | null
+  team: string | null
+  department: string | null
+  role: string | null
+}
+
+export interface AppEntity {
+  id: string
+  name: string
+  description: string | null
+  app_type: string | null
+  version: string | null
+  url: string | null
+  process_id: string
+  owner_id: string | null
+  criticality: number | null
+  asset_ids: string[] | null
+  is_active: boolean
 }

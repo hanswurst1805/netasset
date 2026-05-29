@@ -58,6 +58,7 @@ class BusinessProcess(Base):
 
     owner: Mapped[Optional["Owner"]] = relationship(back_populates="business_processes")
     process_assets: Mapped[list["ProcessAsset"]] = relationship(back_populates="process")
+    applications: Mapped[list["Application"]] = relationship(back_populates="process", cascade="all, delete-orphan")
 
 
 class ProcessAsset(Base):
@@ -74,6 +75,55 @@ class ProcessAsset(Base):
 
     process: Mapped["BusinessProcess"] = relationship(back_populates="process_assets")
     asset: Mapped["Asset"] = relationship(back_populates="process_assets")
+
+
+# ---------------------------------------------------------------------------
+# A – Application (OBASHI A-Layer)
+# Fachliche Anwendungen/Services – KEINE Software-Pakete (die gehören in S)
+# ---------------------------------------------------------------------------
+
+class Application(Base):
+    """
+    OBASHI A-Layer: Fachliche Anwendung oder Service.
+
+    Beispiele: "Webshop Frontend", "CRM-System", "Zahlungsgateway", "ERP"
+    – nicht: nginx, OpenSSL, PostgreSQL (die gehören ins SBOM / S-Layer)
+    """
+    __tablename__ = "applications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Typ der Anwendung
+    app_type: Mapped[Optional[str]] = mapped_column(String(50))
+    # web, api, batch, integration, desktop, mobile, service
+
+    version: Mapped[Optional[str]] = mapped_column(String(100))
+    url: Mapped[Optional[str]] = mapped_column(String(500))
+
+    # Zugehöriger Prozess
+    process_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("business_processes.id", ondelete="CASCADE"), index=True
+    )
+
+    # Optionaler Owner auf App-Ebene (kann abweichen vom Prozess-Owner)
+    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("owners.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Kritikalität der Anwendung selbst (kann von Prozess abweichen)
+    criticality: Mapped[Optional[int]] = mapped_column(Integer)  # 1–5
+
+    # Auf welchen Assets läuft diese Anwendung (JSONB-Liste von Asset-UUIDs)
+    # Einfacher als Many-to-Many für diesen Use-Case
+    asset_ids: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    process: Mapped["BusinessProcess"] = relationship(back_populates="applications")
+    owner: Mapped[Optional["Owner"]] = relationship()
 
 
 # ---------------------------------------------------------------------------

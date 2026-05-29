@@ -1,9 +1,13 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, type Owner, type AppEntity } from '../api/client'
 import Badge from '../components/Badge'
 import OBASHIDiagram from '../components/OBASHIDiagram'
-import { ChevronDown, ChevronUp, Layers, BarChart2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2 } from 'lucide-react'
+
+// ---------------------------------------------------------------------------
+// Hilfsfunktionen
+// ---------------------------------------------------------------------------
 
 function CriticalityBar({ value }: { value: number }) {
   const colors = ['', 'bg-green-500', 'bg-green-400', 'bg-yellow-400', 'bg-orange-400', 'bg-red-500']
@@ -25,11 +29,301 @@ async function fetchObashi(id: string) {
   return res.json()
 }
 
-type ViewMode = 'risk' | 'obashi'
+// ---------------------------------------------------------------------------
+// Owner-Picker
+// ---------------------------------------------------------------------------
+
+function OwnerPicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
+  const { data: owners = [] } = useQuery({ queryKey: ['owners'], queryFn: api.owners.list })
+  return (
+    <select
+      className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-gray-300 focus:outline-none"
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value || null)}
+    >
+      <option value="">— kein Owner —</option>
+      {owners.map((o: Owner) => (
+        <option key={o.id} value={o.id}>{o.name}{o.team ? ` (${o.team})` : ''}</option>
+      ))}
+    </select>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Application-Verwaltung
+// ---------------------------------------------------------------------------
+
+const APP_TYPES = ['web', 'api', 'batch', 'integration', 'service', 'desktop', 'mobile', 'other']
+const TYPE_ICONS: Record<string, string> = {
+  web: '🌐', api: '⚡', batch: '⚙', integration: '🔗', service: '🔧', desktop: '🖥', mobile: '📱', other: '📦'
+}
+
+function ApplicationManager({ processId, owners }: { processId: string; owners: Owner[] }) {
+  const qc = useQueryClient()
+  const [showNew, setShowNew] = useState(false)
+  const [form, setForm] = useState({
+    name: '', app_type: 'web', version: '', url: '', description: '',
+    owner_id: '', criticality: '', process_id: processId
+  })
+
+  const { data: apps = [] } = useQuery({
+    queryKey: ['apps', processId],
+    queryFn: () => api.applications.list(processId),
+  })
+
+  const create = useMutation({
+    mutationFn: () => api.applications.create({
+      ...form,
+      owner_id: form.owner_id || null,
+      criticality: form.criticality ? Number(form.criticality) : null,
+      version: form.version || null,
+      url: form.url || null,
+      description: form.description || null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['apps', processId] })
+      qc.invalidateQueries({ queryKey: ['obashi', processId] })
+      setShowNew(false)
+      setForm({ name: '', app_type: 'web', version: '', url: '', description: '', owner_id: '', criticality: '', process_id: processId })
+    },
+  })
+
+  const del = useMutation({
+    mutationFn: (id: string) => api.applications.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['apps', processId] })
+      qc.invalidateQueries({ queryKey: ['obashi', processId] })
+    },
+  })
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-500 uppercase tracking-wider">
+          A – Applications ({apps.length})
+        </span>
+        <button
+          onClick={() => setShowNew(!showNew)}
+          className="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded"
+        >
+          <Plus size={11} /> Neue App
+        </button>
+      </div>
+
+      {/* Neue App Form */}
+      {showNew && (
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 mb-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="col-span-2 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              placeholder="Name der Anwendung (z.B. Webshop, CRM)"
+              value={form.name}
+              onChange={e => setForm({ ...form, name: e.target.value })}
+            />
+            <select
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.app_type}
+              onChange={e => setForm({ ...form, app_type: e.target.value })}
+            >
+              {APP_TYPES.map(t => (
+                <option key={t} value={t}>{TYPE_ICONS[t]} {t}</option>
+              ))}
+            </select>
+            <input
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              placeholder="Version (optional)"
+              value={form.version}
+              onChange={e => setForm({ ...form, version: e.target.value })}
+            />
+            <input
+              className="col-span-2 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              placeholder="URL (optional)"
+              value={form.url}
+              onChange={e => setForm({ ...form, url: e.target.value })}
+            />
+            <select
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.owner_id}
+              onChange={e => setForm({ ...form, owner_id: e.target.value })}
+            >
+              <option value="">— App-Owner (optional) —</option>
+              {owners.map(o => (
+                <option key={o.id} value={o.id}>{o.name}{o.team ? ` (${o.team})` : ''}</option>
+              ))}
+            </select>
+            <select
+              className="bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.criticality}
+              onChange={e => setForm({ ...form, criticality: e.target.value })}
+            >
+              <option value="">— Kritikalität —</option>
+              {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}/5</option>)}
+            </select>
+          </div>
+          <textarea
+            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none resize-none"
+            rows={2}
+            placeholder="Beschreibung (optional)"
+            value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })}
+          />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowNew(false)} className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1">Abbrechen</button>
+            <button
+              onClick={() => create.mutate()}
+              disabled={!form.name}
+              className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-3 py-1.5 rounded"
+            >
+              Anlegen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* App-Liste */}
+      <div className="space-y-1.5">
+        {apps.map((app: AppEntity) => (
+          <div key={app.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-3 py-2">
+            <span className="text-base">{TYPE_ICONS[app.app_type || 'other'] || '📦'}</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{app.name}</div>
+              <div className="text-xs text-gray-500 flex gap-2">
+                <span>{app.app_type}</span>
+                {app.version && <span>v{app.version}</span>}
+                {app.criticality && <span>Krit. {app.criticality}/5</span>}
+              </div>
+            </div>
+            <button
+              onClick={() => del.mutate(app.id)}
+              className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+        {apps.length === 0 && !showNew && (
+          <p className="text-xs text-gray-600 py-2 text-center">
+            Noch keine Anwendungen — „Neue App" anlegen
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Owner-Verwaltung Modal
+// ---------------------------------------------------------------------------
+
+function OwnerManagement({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const { data: owners = [] } = useQuery({ queryKey: ['owners'], queryFn: api.owners.list })
+  const [form, setForm] = useState({ name: '', email: '', team: '', department: '', role: '' })
+
+  const create = useMutation({
+    mutationFn: () => api.owners.create({
+      name: form.name,
+      email: form.email || null,
+      team: form.team || null,
+      department: form.department || null,
+      role: form.role || null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['owners'] })
+      setForm({ name: '', email: '', team: '', department: '', role: '' })
+    },
+  })
+
+  const del = useMutation({
+    mutationFn: (id: string) => api.owners.delete(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['owners'] }),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold flex items-center gap-2"><User size={18} /> Owner verwalten</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-200 text-xl">×</button>
+        </div>
+
+        {/* Neuer Owner */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <input
+            className="col-span-2 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-100 focus:outline-none"
+            placeholder="Name *"
+            value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+          />
+          <input
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none"
+            placeholder="E-Mail"
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+          />
+          <input
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none"
+            placeholder="Team"
+            value={form.team}
+            onChange={e => setForm({ ...form, team: e.target.value })}
+          />
+          <input
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none"
+            placeholder="Abteilung"
+            value={form.department}
+            onChange={e => setForm({ ...form, department: e.target.value })}
+          />
+          <input
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-gray-300 focus:outline-none"
+            placeholder="Rolle (Owner/Operator/…)"
+            value={form.role}
+            onChange={e => setForm({ ...form, role: e.target.value })}
+          />
+          <button
+            onClick={() => create.mutate()}
+            disabled={!form.name}
+            className="col-span-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm py-2 rounded"
+          >
+            Owner anlegen
+          </button>
+        </div>
+
+        {/* Owner-Liste */}
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {owners.map((o: Owner) => (
+            <div key={o.id} className="flex items-center gap-3 bg-gray-800 rounded-lg px-3 py-2">
+              <div className="flex-1">
+                <div className="text-sm font-medium">{o.name}</div>
+                <div className="text-xs text-gray-500 flex gap-2">
+                  {o.team && <span>{o.team}</span>}
+                  {o.department && <span>{o.department}</span>}
+                  {o.email && <span>{o.email}</span>}
+                </div>
+              </div>
+              <button onClick={() => del.mutate(o.id)} className="text-gray-600 hover:text-red-400">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+          {owners.length === 0 && <p className="text-xs text-gray-600 text-center py-2">Keine Owners</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Prozess-Zeile
+// ---------------------------------------------------------------------------
+
+type ViewMode = 'obashi' | 'risk' | 'apps'
 
 function ProcessRow({ process }: { process: any }) {
+  const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<ViewMode>('obashi')
+
+  const { data: owners = [] } = useQuery({ queryKey: ['owners'], queryFn: api.owners.list })
 
   const { data: risk } = useQuery({
     queryKey: ['process-risk', process.id],
@@ -49,6 +343,21 @@ function ProcessRow({ process }: { process: any }) {
     enabled: open && view === 'obashi',
   })
 
+  // Owner zuweisen
+  const setOwner = useMutation({
+    mutationFn: (ownerId: string | null) => api.processes.update(process.id, {
+      name: process.name,
+      criticality: process.criticality,
+      owner_id: ownerId,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['processes'] })
+      qc.invalidateQueries({ queryKey: ['obashi', process.id] })
+    },
+  })
+
+  const currentOwner = owners.find((o: Owner) => o.id === process.owner_id)
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
       {/* Header */}
@@ -57,7 +366,14 @@ function ProcessRow({ process }: { process: any }) {
         className="w-full flex items-center gap-4 px-4 py-3 hover:bg-gray-800 transition-colors"
       >
         <div className="flex-1 text-left">
-          <div className="font-medium text-sm">{process.name}</div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{process.name}</span>
+            {currentOwner && (
+              <span className="flex items-center gap-1 text-xs bg-indigo-900/50 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-800">
+                <User size={10} /> {currentOwner.name}
+              </span>
+            )}
+          </div>
           {process.description && (
             <div className="text-xs text-gray-500 mt-0.5 truncate max-w-md">{process.description}</div>
           )}
@@ -79,55 +395,57 @@ function ProcessRow({ process }: { process: any }) {
 
       {open && (
         <div className="border-t border-gray-800">
-          {/* View-Toggle */}
-          <div className="flex gap-1 px-4 pt-3 pb-0">
-            <button
-              onClick={() => setView('obashi')}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${
-                view === 'obashi'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800'
-              }`}
-            >
-              <Layers size={12} /> OBASHI-Diagramm
-            </button>
-            <button
-              onClick={() => setView('risk')}
-              className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${
-                view === 'risk'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800'
-              }`}
-            >
-              <BarChart2 size={12} /> CVE-Risiko
-            </button>
+          {/* Toolbar */}
+          <div className="flex items-center gap-3 px-4 pt-3 pb-0">
+            <div className="flex gap-1">
+              {[
+                { id: 'obashi', icon: Layers, label: 'OBASHI' },
+                { id: 'apps', icon: Settings2, label: 'Anwendungen' },
+                { id: 'risk', icon: BarChart2, label: 'CVE-Risiko' },
+              ].map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setView(id as ViewMode)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${
+                    view === id ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800'
+                  }`}
+                >
+                  <Icon size={12} /> {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Owner-Picker inline */}
+            <div className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+              <User size={12} />
+              <OwnerPicker
+                value={process.owner_id ?? null}
+                onChange={id => setOwner.mutate(id)}
+              />
+            </div>
           </div>
 
           {/* OBASHI View */}
           {view === 'obashi' && (
             <div className="p-4">
-              {!obashi && (
-                <div className="text-gray-500 text-sm py-4 text-center">Lade OBASHI-Daten…</div>
-              )}
+              {!obashi && <div className="text-gray-500 text-sm py-4 text-center">Lade…</div>}
               {obashi && obashi.nodes.length === 0 && (
                 <div className="text-gray-600 text-sm py-4 text-center">
-                  Keine Assets diesem Prozess zugeordnet.
-                  <br />
-                  <span className="text-xs">Assets über Einstellungen → Prozesse zuordnen.</span>
+                  Keine Daten. Anwendungen anlegen und Assets zuordnen.
                 </div>
               )}
               {obashi && obashi.nodes.length > 0 && (
-                <>
-                  <div className="text-xs text-gray-500 mb-3 flex items-center gap-4">
-                    <span>{obashi.nodes.length} Nodes</span>
-                    <span>{obashi.edges.length} Verbindungen</span>
-                    <span className="text-gray-600">Klick auf Node für Details</span>
-                  </div>
-                  <div className="rounded-lg overflow-hidden border border-gray-800">
-                    <OBASHIDiagram data={obashi} />
-                  </div>
-                </>
+                <div className="rounded-lg overflow-hidden border border-gray-800">
+                  <OBASHIDiagram data={obashi} />
+                </div>
               )}
+            </div>
+          )}
+
+          {/* Applications View */}
+          {view === 'apps' && (
+            <div className="p-4">
+              <ApplicationManager processId={process.id} owners={owners} />
             </div>
           )}
 
@@ -136,9 +454,7 @@ function ProcessRow({ process }: { process: any }) {
             <div className="p-4 grid grid-cols-2 gap-6">
               <div>
                 <h3 className="text-xs text-gray-500 uppercase mb-3">CVE-Risiko</h3>
-                {!risk ? (
-                  <div className="text-gray-600 text-sm">Laden…</div>
-                ) : (
+                {!risk ? <div className="text-gray-600 text-sm">Laden…</div> : (
                   <>
                     <div className="grid grid-cols-3 gap-2 mb-4">
                       {[
@@ -154,7 +470,6 @@ function ProcessRow({ process }: { process: any }) {
                     </div>
                     {risk.top_cves.length > 0 && (
                       <div className="space-y-1">
-                        <div className="text-xs text-gray-600 mb-1">Top CVEs</div>
                         {risk.top_cves.map((c: any) => (
                           <div key={c.cve_id} className="flex items-center justify-between text-xs">
                             <span className="font-mono text-indigo-400">{c.cve_id}</span>
@@ -166,22 +481,15 @@ function ProcessRow({ process }: { process: any }) {
                   </>
                 )}
               </div>
-
               <div>
                 <h3 className="text-xs text-gray-500 uppercase mb-3">Assets ({assets.length})</h3>
                 <div className="space-y-1.5">
                   {assets.map((a: any) => (
-                    <div key={a.asset_id} className="flex items-center justify-between text-sm bg-gray-800 rounded px-3 py-1.5">
-                      <div>
-                        <span className="font-medium">{a.hostname ?? a.ip_address}</span>
-                        <span className="text-xs text-gray-500 ml-2">{a.role}</span>
-                      </div>
+                    <div key={a.asset_id} className="flex items-center justify-between bg-gray-800 rounded px-3 py-1.5 text-sm">
+                      <span className="font-medium">{a.hostname ?? a.ip_address}</span>
                       <Badge value={a.exposure_level} />
                     </div>
                   ))}
-                  {assets.length === 0 && (
-                    <div className="text-gray-600 text-sm">Keine Assets zugeordnet</div>
-                  )}
                 </div>
               </div>
             </div>
@@ -192,7 +500,12 @@ function ProcessRow({ process }: { process: any }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Hauptseite
+// ---------------------------------------------------------------------------
+
 export default function Processes() {
+  const [showOwnerMgmt, setShowOwnerMgmt] = useState(false)
   const { data: processes = [], isLoading } = useQuery({
     queryKey: ['processes'],
     queryFn: api.processes.list,
@@ -200,12 +513,21 @@ export default function Processes() {
 
   return (
     <div className="max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Business-Prozesse</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          OBASHI-Struktur: Owners → Business → Application → System → Hardware → Infrastructure
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Business-Prozesse</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            O → B → A → S → H → I
+          </p>
+        </div>
+        <button
+          onClick={() => setShowOwnerMgmt(true)}
+          className="flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-700"
+        >
+          <User size={14} /> Owner verwalten
+        </button>
       </div>
+
       {isLoading && <div className="text-gray-500">Laden…</div>}
       <div className="space-y-3">
         {processes.map((p: any) => <ProcessRow key={p.id} process={p} />)}
@@ -215,6 +537,8 @@ export default function Processes() {
           </div>
         )}
       </div>
+
+      {showOwnerMgmt && <OwnerManagement onClose={() => setShowOwnerMgmt(false)} />}
     </div>
   )
 }

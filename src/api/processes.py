@@ -27,6 +27,8 @@ class ProcessCreate(BaseModel):
     sla_rpo_hours: Optional[int] = None
     owner_id: Optional[uuid.UUID] = None
 
+    model_config = {"populate_by_name": True}
+
 
 class ProcessOut(BaseModel):
     id: uuid.UUID
@@ -82,6 +84,22 @@ async def get_process(process_id: uuid.UUID, session: AsyncSession = Depends(get
     process = await session.get(BusinessProcess, process_id)
     if not process:
         raise HTTPException(404, f"Prozess {process_id} nicht gefunden")
+    return process
+
+
+@router.put("/{process_id}", response_model=ProcessOut)
+async def update_process(
+    process_id: uuid.UUID,
+    body: ProcessCreate,
+    session: AsyncSession = Depends(get_session),
+):
+    process = await session.get(BusinessProcess, process_id)
+    if not process:
+        raise HTTPException(404, f"Prozess {process_id} nicht gefunden")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(process, k, v)
+    await session.flush()
+    await session.refresh(process)
     return process
 
 
