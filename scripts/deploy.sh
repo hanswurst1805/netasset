@@ -68,6 +68,7 @@ cmd_start() {
         --pod "$POD_NAME" \
         --name netasset-caddy \
         --restart unless-stopped \
+        -e "DOMAIN=${DOMAIN}" \
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
         -v netasset-caddy-data:/data \
         -v netasset-caddy-config:/config \
