@@ -1,6 +1,15 @@
 {$DOMAIN} {
-    # Im Podman-Pod teilen alle Container denselben Netzwerk-Namespace → localhost
-    reverse_proxy localhost:8000
+    # API-Requests an FastAPI weiterleiten
+    handle /api/* {
+        reverse_proxy localhost:8000
+    }
+
+    # Alles andere: React SPA aus dem dist-Verzeichnis
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
 
     encode gzip
 

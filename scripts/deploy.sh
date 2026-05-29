@@ -23,8 +23,9 @@ set -a; source "$ENV_FILE"; set +a
 
 # ---------------------------------------------------------------------------
 cmd_start() {
-    echo "==> [0/5] Image bauen..."
+    echo "==> [0/5] Image bauen + Frontend kompilieren..."
     podman build -t "$API_IMAGE" "$INSTALL_DIR"
+    _build_frontend
 
     echo "==> Pod anlegen..."
     podman pod create \
@@ -70,6 +71,7 @@ cmd_start() {
         --restart unless-stopped \
         -e "DOMAIN=${DOMAIN}" \
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
+        -v "$INSTALL_DIR/frontend/dist:/srv/frontend:ro" \
         -v netasset-caddy-data:/data \
         -v netasset-caddy-config:/config \
         docker.io/caddy:2-alpine
@@ -100,21 +102,34 @@ _start_api() {
         "$API_IMAGE"
 }
 
+_build_frontend() {
+    if command -v npm &>/dev/null; then
+        echo "==> Frontend bauen (npm)..."
+        cd "$INSTALL_DIR/frontend" && npm ci --silent && npm run build
+        cd "$INSTALL_DIR"
+    else
+        echo "    (npm nicht installiert – Frontend-Build übersprungen)"
+    fi
+}
+
 cmd_deploy() {
     cd "$INSTALL_DIR"
 
-    echo "==> [1/4] Git pull..."
+    echo "==> [1/5] Git pull..."
     git pull
 
-    echo "==> [2/4] Image bauen..."
+    echo "==> [2/5] Frontend bauen..."
+    _build_frontend
+
+    echo "==> [3/5] Image bauen..."
     podman build -t "$API_IMAGE" .
 
-    echo "==> [3/4] API neu starten..."
+    echo "==> [4/5] API neu starten..."
     podman stop netasset-api 2>/dev/null || true
     podman rm   netasset-api 2>/dev/null || true
     _start_api
 
-    echo "==> [4/4] Migrationen..."
+    echo "==> [5/5] Migrationen..."
     podman run --rm \
         --pod "$POD_NAME" \
         --env-file "$ENV_FILE" \
