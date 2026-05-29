@@ -112,7 +112,7 @@ def upgrade() -> None:
         sa.Column("scanned_at", sa.DateTime(), server_default=sa.text("now()")),
     )
 
-    # CVE-Einträge mit pgvector
+    # CVE-Einträge – ohne embedding-Spalte zuerst anlegen
     op.create_table(
         "cve_entries",
         sa.Column("cve_id", sa.String(50), primary_key=True),
@@ -124,11 +124,10 @@ def upgrade() -> None:
         sa.Column("affected_pkgs", postgresql.JSONB()),
         sa.Column("published_at", sa.DateTime()),
         sa.Column("modified_at", sa.DateTime()),
-        sa.Column("embedding", sa.types.UserDefinedType(), nullable=True),
         sa.Column("raw", postgresql.JSONB()),
     )
-    # Vector-Spalte manuell (pgvector Typ)
-    op.execute("ALTER TABLE cve_entries ALTER COLUMN embedding TYPE vector(384) USING embedding::vector(384)")
+    # Vector-Spalte per Raw-SQL hinzufügen (pgvector Typ)
+    op.execute("ALTER TABLE cve_entries ADD COLUMN embedding vector(384)")
 
     # HNSW-Index für schnelle Cosine-Similarity-Suche
     op.execute("CREATE INDEX cve_embedding_hnsw ON cve_entries USING hnsw (embedding vector_cosine_ops)")
