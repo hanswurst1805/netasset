@@ -23,6 +23,9 @@ set -a; source "$ENV_FILE"; set +a
 
 # ---------------------------------------------------------------------------
 cmd_start() {
+    echo "==> [0/5] Image bauen..."
+    podman build -t "$API_IMAGE" "$INSTALL_DIR"
+
     echo "==> Pod anlegen..."
     podman pod create \
         --name "$POD_NAME" \
