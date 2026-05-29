@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pytest tests/test_cve_impact.py -v)",
+      "Bash(pip3 install *)",
+      "Bash(/Users/kiste/Library/Python/3.9/bin/pytest tests/test_cve_impact.py -v)"
+    ]
+  }
+}

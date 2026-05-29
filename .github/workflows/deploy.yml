@@ -1,0 +1,92 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Auch deployen?"
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/netasset
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.deploy)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy auf VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/netasset
+
+            # Neuestes Image ziehen
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            export IMAGE_TAG=sha-${{ github.sha }}
+            export GITHUB_REPO=${{ github.repository }}
+
+            podman compose -f docker-compose.prod.yml pull api
+
+            # Migrationen ausführen
+            podman compose -f docker-compose.prod.yml run --rm api \
+              alembic upgrade head
+
+            # App neu starten (zero-downtime: db läuft weiter)
+            podman compose -f docker-compose.prod.yml up -d --no-deps api
+
+            # Altes Image aufräumen
+            podman image prune -f

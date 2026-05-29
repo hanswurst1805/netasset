@@ -1,0 +1,27 @@
+{$DOMAIN} {
+    reverse_proxy api:8000
+
+    # Komprimierung
+    encode gzip
+
+    # Security-Header
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+
+    # Swagger UI + Health nur intern erlauben (optional: entfernen für public)
+    # @internal remote_ip private_ranges
+    # handle /docs* {
+    #     respond @internal 403
+    # }
+
+    log {
+        output file /data/logs/access.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+    }
+}

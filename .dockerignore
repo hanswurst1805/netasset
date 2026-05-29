@@ -1,0 +1,15 @@
+.git
+.github
+.env*
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+docs/
+tests/
+*.md
+Caddyfile
+docker-compose*.yml
+scripts/server_setup.sh
