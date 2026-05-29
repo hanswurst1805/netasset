@@ -1,6 +1,14 @@
 {$DOMAIN} {
-    # API-Requests an FastAPI weiterleiten
+    # API + Auth an FastAPI weiterleiten
     handle /api/* {
+        reverse_proxy localhost:8000
+    }
+
+    handle /auth/* {
+        reverse_proxy localhost:8000
+    }
+
+    handle /health {
         reverse_proxy localhost:8000
     }
 
