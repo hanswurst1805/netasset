@@ -1,15 +1,20 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from src.models.all_models import Base  # noqa: F401 – registriert alle Tabellen
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# DATABASE_URL aus Umgebungsvariable hat Vorrang vor alembic.ini
+if db_url := os.environ.get("DATABASE_URL"):
+    config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata
 
