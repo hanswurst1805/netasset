@@ -38,6 +38,7 @@ cmd_start() {
 
     echo "==> Datenbank starten..."
     podman run -d \
+        --replace \
         --pod "$POD_NAME" \
         --name netasset-db \
         --restart unless-stopped \
@@ -48,8 +49,7 @@ cmd_start() {
         --health-cmd "pg_isready -U netasset" \
         --health-interval 10s \
         --health-retries 5 \
-        pgvector/pgvector:pg16 \
-        2>/dev/null || echo "    (DB läuft bereits)"
+        pgvector/pgvector:pg16
 
     echo "==> Warte auf Datenbank..."
     for i in $(seq 1 30); do
@@ -61,14 +61,14 @@ cmd_start() {
 
     echo "==> Caddy starten..."
     podman run -d \
+        --replace \
         --pod "$POD_NAME" \
         --name netasset-caddy \
         --restart unless-stopped \
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
         -v netasset-caddy-data:/data \
         -v netasset-caddy-config:/config \
-        caddy:2-alpine \
-        2>/dev/null || echo "    (Caddy läuft bereits)"
+        caddy:2-alpine
 
     echo ""
     echo "==> Migrationen..."
@@ -87,6 +87,7 @@ cmd_start() {
 _start_api() {
     echo "==> API starten..."
     podman run -d \
+        --replace \
         --pod "$POD_NAME" \
         --name netasset-api \
         --restart unless-stopped \
