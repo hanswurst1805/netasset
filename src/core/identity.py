@@ -146,11 +146,13 @@ class IdentityResolver:
         return IdentityResult(result=MatchResult.NEW, confidence=0.0)
 
     async def _find_by_field(self, field: str, value: str) -> Optional[Asset]:
-        """Sucht ein Asset anhand eines einzelnen Feldes."""
+        """Sucht ein Asset anhand eines einzelnen Feldes.
+        Gibt den ersten Treffer zurück (LIMIT 1) um MultipleResultsFound zu vermeiden.
+        """
         stmt = select(Asset).where(
             getattr(Asset, field) == value,
             Asset.is_active == True,
-        )
+        ).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
