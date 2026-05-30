@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
 from src.core.identity import DeviceFingerprint, IdentityResolver, MatchResult
+from src.core.network_classifier import classify_asset_and_update
 from src.models.all_models import Asset, ConflictQueueEntry
 
 router = APIRouter()
@@ -93,6 +94,8 @@ async def ingest_devices(
             asset.sources = [{"origin": device.source, "last_seen": datetime.now(timezone.utc).isoformat()}]
             session.add(asset)
             await session.flush()
+            # Automatische Netzwerk-Zuordnung per IP
+            await classify_asset_and_update(asset, session)
             identity.asset_id = asset.id
             action = "created"
 

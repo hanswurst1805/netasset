@@ -1,11 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut, AlertTriangle, Network } from 'lucide-react'
+import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut, AlertTriangle, Network, Globe } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { fetchConflictCount } from '../pages/ConflictQueue'
 
 const nav = [
   { to: '/assets',    icon: Server,        label: 'Assets' },
+  { to: '/networks',  icon: Globe,         label: 'Netzwerke' },
   { to: '/topology',  icon: Network,       label: 'Topologie' },
   { to: '/cve',       icon: ShieldAlert,   label: 'CVE Dashboard' },
   { to: '/chat',      icon: MessageSquare, label: 'Chatbot' },

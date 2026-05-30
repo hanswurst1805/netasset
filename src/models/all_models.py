@@ -171,6 +171,11 @@ class Asset(Base):
     # ["INTERN", "DMZ"]  oder  ["192.168.178.0/24", "10.0.0.0/8", "EXTERN"]
     # Router/Firewalls haben typisch mehrere Einträge
 
+    # Automatisch zugeordnetes primäres Netzwerk (aus IP-Adresse ermittelt)
+    network_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ip_networks.id", ondelete="SET NULL"), nullable=True
+    )
+
     open_ports: Mapped[Optional[dict]] = mapped_column(JSONB, default=list)
     # [{"port": 22, "proto": "tcp", "reachable_from": ["internet"]}]
 
@@ -199,6 +204,7 @@ class Asset(Base):
     cve_impacts: Mapped[list["CVEImpact"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     port_scans: Mapped[list["PortScan"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     gateways: Mapped[list["NetworkGateway"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+    network: Mapped[Optional["IpNetwork"]] = relationship(back_populates="assets")
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +264,29 @@ class PortScan(Base):
     scanned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     asset: Mapped["Asset"] = relationship(back_populates="port_scans")
+
+
+# ---------------------------------------------------------------------------
+# IP-Netzwerke (I-Layer: definierte Subnetze mit Namen)
+# ---------------------------------------------------------------------------
+
+class IpNetwork(Base):
+    """
+    Benanntes IP-Netzwerk (Subnetz).
+    Assets werden automatisch anhand ihrer IP-Adresse zugeordnet.
+    """
+    __tablename__ = "ip_networks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    cidr: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    # z.B. "192.168.178.0/24", "10.0.0.0/8", "172.16.0.0/12"
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    exposure_level: Mapped[str] = mapped_column(String(20), default="INTERN")
+    color: Mapped[Optional[str]] = mapped_column(String(20))  # Farbe für UI
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    assets: Mapped[list["Asset"]] = relationship(back_populates="network")
 
 
 # ---------------------------------------------------------------------------

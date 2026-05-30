@@ -10,6 +10,7 @@ import Processes from './pages/Processes'
 import UserManagement from './pages/UserManagement'
 import ConflictQueue from './pages/ConflictQueue'
 import NetworkTopology from './pages/NetworkTopology'
+import Networks from './pages/Networks'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -39,6 +40,7 @@ export default function App() {
                   <Route path="/settings" element={<UserManagement />} />
                   <Route path="/conflicts" element={<ConflictQueue />} />
                   <Route path="/topology" element={<NetworkTopology />} />
+                  <Route path="/networks" element={<Networks />} />
                 </Routes>
               </Layout>
             </RequireAuth>
