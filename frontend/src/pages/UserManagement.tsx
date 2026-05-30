@@ -90,15 +90,22 @@ function NewUserForm({ onClose }: { onClose: () => void }) {
 }
 
 function APIKeySection() {
-  const { data: keys = [] } = useQuery({ queryKey: ['apikeys'], queryFn: api.auth.apiKeys.list })
+  const { data: keys = [], error: listError } = useQuery({ queryKey: ['apikeys'], queryFn: api.auth.apiKeys.list })
   const qc = useQueryClient()
   const [newKey, setNewKey] = useState<{ raw_key: string; name: string } | null>(null)
   const [name, setName] = useState('')
   const [copied, setCopied] = useState(false)
+  const [createError, setCreateError] = useState('')
 
   const create = useMutation({
     mutationFn: () => api.auth.apiKeys.create({ name }),
-    onSuccess: (k: any) => { qc.invalidateQueries({ queryKey: ['apikeys'] }); setNewKey(k); setName('') },
+    onSuccess: (k: any) => {
+      qc.invalidateQueries({ queryKey: ['apikeys'] })
+      setNewKey(k)
+      setName('')
+      setCreateError('')
+    },
+    onError: (e: Error) => setCreateError(e.message),
   })
   const revoke = useMutation({
     mutationFn: (id: string) => api.auth.apiKeys.revoke(id),
@@ -130,21 +137,28 @@ function APIKeySection() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-2">
         <input
           className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 focus:outline-none"
-          placeholder="Name des API-Keys"
+          placeholder="Name des API-Keys (z.B. linux-server)"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={e => { setName(e.target.value); setCreateError('') }}
+          onKeyDown={e => e.key === 'Enter' && name && create.mutate()}
         />
         <button
           onClick={() => create.mutate()}
-          disabled={!name}
-          className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-sm text-gray-200 px-3 py-1.5 rounded"
+          disabled={!name || create.isPending}
+          className="flex items-center gap-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-sm text-gray-200 px-3 py-1.5 rounded whitespace-nowrap"
         >
-          <Plus size={14} /> Key erstellen
+          <Plus size={14} /> {create.isPending ? 'Erstelle…' : 'Key erstellen'}
         </button>
       </div>
+      {createError && (
+        <p className="text-xs text-red-400 bg-red-950 border border-red-800 rounded px-2 py-1 mb-2">{createError}</p>
+      )}
+      {listError && (
+        <p className="text-xs text-red-400 mb-2">Fehler beim Laden: {(listError as Error).message}</p>
+      )}
 
       <div className="space-y-2">
         {keys.map(k => (
