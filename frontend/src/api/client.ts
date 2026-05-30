@@ -27,6 +27,7 @@ async function req<T>(path: string, opts?: RequestInit & { auth?: boolean }): Pr
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail ?? `${res.status} ${res.statusText}`)
   }
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 
