@@ -1,12 +1,169 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check } from 'lucide-react'
+
+// ---------------------------------------------------------------------------
+// Tag-Eingabe
+// ---------------------------------------------------------------------------
+
+function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
+  const [input, setInput] = useState('')
+  function add() {
+    const t = input.trim()
+    if (t && !tags.includes(t)) onChange([...tags, t])
+    setInput('')
+  }
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1 mb-2 min-h-[28px]">
+        {tags.map(t => (
+          <span key={t} className="flex items-center gap-1 bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded">
+            {t}
+            <button onClick={() => onChange(tags.filter(x => x !== t))} className="hover:text-red-400">×</button>
+          </span>
+        ))}
+        {tags.length === 0 && <span className="text-xs text-gray-600">Keine Tags</span>}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Tag hinzufügen (Enter)"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+        />
+        <button onClick={add} className="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">+</button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Edit-Modal
+// ---------------------------------------------------------------------------
+
+const ASSET_TYPES = ['server', 'client', 'switch', 'router', 'firewall', 'printer', 'vm', 'access-point', 'other']
+const EXPOSURES  = ['INTERN', 'DMZ', 'EXTERN']
+
+function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({
+    hostname:       asset.hostname ?? '',
+    ip_address:     asset.ip_address ?? '',
+    fqdn:           asset.fqdn ?? '',
+    mac_address:    asset.mac_address ?? '',
+    asset_type:     asset.asset_type,
+    os_name:        asset.os_name ?? '',
+    os_version:     asset.os_version ?? '',
+    exposure_level: asset.exposure_level,
+    location:       (asset as any).location ?? '',
+    tags:           asset.tags ?? [],
+  })
+  const [error, setError] = useState('')
+
+  const update = useMutation({
+    mutationFn: () => api.assets.update(asset.id, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['asset', asset.id] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      onClose()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const field = (label: string, key: keyof typeof form, type = 'text') => (
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      <input
+        type={type}
+        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        value={form[key] as string}
+        onChange={e => setForm({ ...form, [key]: e.target.value })}
+      />
+    </div>
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <h2 className="font-semibold text-lg">Asset bearbeiten</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-200"><X size={18} /></button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {field('Hostname', 'hostname')}
+            {field('IP-Adresse', 'ip_address')}
+            {field('FQDN', 'fqdn')}
+            {field('MAC-Adresse', 'mac_address')}
+            {field('OS Name', 'os_name')}
+            {field('OS Version', 'os_version')}
+            {field('Standort', 'location')}
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Asset-Typ</label>
+              <select
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+                value={form.asset_type}
+                onChange={e => setForm({ ...form, asset_type: e.target.value })}
+              >
+                {ASSET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Exposure</label>
+              <select
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+                value={form.exposure_level}
+                onChange={e => setForm({ ...form, exposure_level: e.target.value as any })}
+              >
+                {EXPOSURES.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-400 mb-2">Tags</label>
+            <TagInput tags={form.tags} onChange={tags => setForm({ ...form, tags })} />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-400 bg-red-950 border border-red-800 rounded px-3 py-2">{error}</p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-800">
+          <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-200 px-4 py-2">
+            Abbrechen
+          </button>
+          <button
+            onClick={() => update.mutate()}
+            disabled={update.isPending}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm px-4 py-2 rounded-lg"
+          >
+            <Check size={14} /> {update.isPending ? 'Speichern…' : 'Speichern'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Hauptseite
+// ---------------------------------------------------------------------------
 
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -20,17 +177,58 @@ export default function AssetDetail() {
     enabled: !!id,
   })
 
+  const del = useMutation({
+    mutationFn: () => api.assets.delete(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      navigate('/assets')
+    },
+  })
+
   if (isLoading) return <div className="text-gray-500 p-4">Laden…</div>
   if (!asset) return <div className="text-red-400 p-4">Asset nicht gefunden</div>
 
   return (
     <div className="max-w-4xl">
-      <button
-        onClick={() => navigate('/assets')}
-        className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 mb-5 transition-colors"
-      >
-        <ArrowLeft size={14} /> Zurück
-      </button>
+      {/* Back + Actions */}
+      <div className="flex items-center justify-between mb-5">
+        <button
+          onClick={() => navigate('/assets')}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          <ArrowLeft size={14} /> Zurück
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setEditing(true)}
+            className="flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700 transition-colors"
+          >
+            <Pencil size={13} /> Bearbeiten
+          </button>
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-red-800 transition-colors"
+            >
+              <Trash2 size={13} /> Löschen
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 bg-red-950 border border-red-800 rounded-lg px-3 py-1.5">
+              <span className="text-xs text-red-300">Sicher?</span>
+              <button
+                onClick={() => del.mutate()}
+                className="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded"
+              >
+                Ja, löschen
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 hover:text-gray-300">
+                Abbrechen
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -44,10 +242,10 @@ export default function AssetDetail() {
       {/* Info Grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         {[
-          ['Typ', asset.asset_type],
-          ['OS', `${asset.os_name ?? '—'} ${asset.os_version ?? ''}`],
-          ['IP', asset.ip_address ?? '—'],
-          ['MAC', asset.mac_address ?? '—'],
+          ['Typ',  asset.asset_type],
+          ['OS',   `${asset.os_name ?? '—'} ${asset.os_version ?? ''}`],
+          ['IP',   asset.ip_address ?? '—'],
+          ['MAC',  asset.mac_address ?? '—'],
         ].map(([label, value]) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <div className="text-xs text-gray-500 mb-1">{label}</div>
@@ -57,15 +255,16 @@ export default function AssetDetail() {
       </div>
 
       {/* Tags */}
-      {asset.tags && asset.tags.length > 0 && (
-        <div className="flex gap-2 mb-6 flex-wrap">
-          {asset.tags.map(tag => (
-            <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded">{tag}</span>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {(asset.tags ?? []).map(tag => (
+          <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded">{tag}</span>
+        ))}
+        {(!asset.tags || asset.tags.length === 0) && (
+          <span className="text-xs text-gray-600">Keine Tags — über „Bearbeiten" hinzufügen</span>
+        )}
+      </div>
 
-      {/* Open Ports */}
+      {/* Ports */}
       {asset.open_ports && asset.open_ports.length > 0 && (
         <section className="mb-6">
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -131,6 +330,9 @@ export default function AssetDetail() {
           </table>
         </div>
       </section>
+
+      {/* Edit Modal */}
+      {editing && <EditModal asset={asset} onClose={() => setEditing(false)} />}
     </div>
   )
 }

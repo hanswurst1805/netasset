@@ -165,6 +165,13 @@ export const api = {
     list: (params?: Record<string, string>) =>
       req<Asset[]>('/assets?' + new URLSearchParams(params)),
     get: (id: string) => req<Asset>(`/assets/${id}`),
+    update: (id: string, body: object) =>
+      req<Asset>(`/assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      fetch('/api/v1/assets/' + id, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+      }),
   },
   sbom: {
     get: (assetId: string) => req<SBOMEntry[]>(`/sbom/assets/${assetId}/sbom`),

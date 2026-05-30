@@ -228,7 +228,7 @@ async def create_api_key(
 
 
 @router.delete("/apikeys/{key_id}", status_code=204)
-async def revoke_api_key(
+async def delete_api_key(
     key_id: uuid.UUID,
     ctx: AuthContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -238,5 +238,5 @@ async def revoke_api_key(
         raise HTTPException(404, "API-Key nicht gefunden")
     if api_key.user_id != ctx.user_id and not ctx.is_admin:
         raise HTTPException(403, "Kein Zugriff")
-    api_key.is_active = False
+    await session.delete(api_key)
     await session.flush()

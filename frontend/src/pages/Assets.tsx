@@ -1,18 +1,28 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import Badge from '../components/Badge'
-import { Search } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 
 const TYPES = ['', 'server', 'switch', 'router', 'firewall', 'client']
 const EXPOSURES = ['', 'INTERN', 'DMZ', 'EXTERN']
 
 export default function Assets() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [expFilter, setExpFilter] = useState('')
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  const del = useMutation({
+    mutationFn: (id: string) => api.assets.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      setConfirmId(null)
+    },
+  })
 
   const { data: assets = [], isLoading } = useQuery({
     queryKey: ['assets', typeFilter, expFilter],
@@ -69,6 +79,7 @@ export default function Assets() {
               <th className="text-left px-4 py-3">OS</th>
               <th className="text-left px-4 py-3">Exposure</th>
               <th className="text-left px-4 py-3">Tags</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -81,18 +92,17 @@ export default function Assets() {
             {filtered.map(asset => (
               <tr
                 key={asset.id}
-                onClick={() => navigate(`/assets/${asset.id}`)}
-                className="border-b border-gray-800 hover:bg-gray-800 cursor-pointer transition-colors"
+                className="group border-b border-gray-800 hover:bg-gray-800 transition-colors"
               >
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
                   <div className="font-medium text-gray-100">{asset.hostname ?? '—'}</div>
                   <div className="text-xs text-gray-500">{asset.ip_address}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-400">{asset.asset_type}</td>
-                <td className="px-4 py-3 text-gray-400">
+                <td className="px-4 py-3 text-gray-400 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.asset_type}</td>
+                <td className="px-4 py-3 text-gray-400 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
                   {asset.os_name} {asset.os_version}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
                   <Badge value={asset.exposure_level} />
                 </td>
                 <td className="px-4 py-3">
@@ -101,6 +111,27 @@ export default function Assets() {
                       <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{tag}</span>
                     ))}
                   </div>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {confirmId === asset.id ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => del.mutate(asset.id)}
+                        className="text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded"
+                      >Ja</button>
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="text-xs text-gray-500 hover:text-gray-300"
+                      >Nein</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); setConfirmId(asset.id) }}
+                      className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
