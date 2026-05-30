@@ -48,6 +48,16 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
 const ASSET_TYPES = ['server', 'client', 'switch', 'router', 'firewall', 'printer', 'vm', 'access-point', 'other']
 const EXPOSURES  = ['INTERN', 'DMZ', 'EXTERN']
 
+const ZONE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+  EXTERN:  { bg: '#1f0808', border: '#dc2626', text: '#fca5a5' },
+  DMZ:     { bg: '#1f1508', border: '#d97706', text: '#fcd34d' },
+  INTERN:  { bg: '#0f1c3e', border: '#2563eb', text: '#93c5fd' },
+  MGMT:    { bg: '#0c2419', border: '#059669', text: '#6ee7b7' },
+}
+function zoneColor(z: string) {
+  return ZONE_COLORS[z] ?? { bg: '#1f2937', border: '#4b5563', text: '#d1d5db' }
+}
+
 function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
   const qc = useQueryClient()
   const [form, setForm] = useState({
@@ -61,6 +71,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
     exposure_level: asset.exposure_level,
     location:       (asset as any).location ?? '',
     tags:           asset.tags ?? [],
+    network_zones:  (asset as any).network_zones ?? [],
   })
   const [error, setError] = useState('')
 
@@ -115,19 +126,31 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">Exposure</label>
-              <select
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
-                value={form.exposure_level}
-                onChange={e => setForm({ ...form, exposure_level: e.target.value as any })}
-              >
-                {EXPOSURES.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </div>
           </div>
 
           <div>
+            <label className="block text-xs text-gray-400 mb-1">Exposure Level (höchste Risikostufe)</label>
+            <select
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.exposure_level}
+              onChange={e => setForm({ ...form, exposure_level: e.target.value as any })}
+            >
+              {EXPOSURES.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-xs text-gray-400 mb-1">
+              Netzwerk-Zonen
+              <span className="text-gray-600 ml-2 font-normal">Alle Netze in denen das Asset aktiv ist (z.B. INTERN, DMZ, 192.168.1.0/24)</span>
+            </label>
+            <TagInput
+              tags={form.network_zones}
+              onChange={zones => setForm({ ...form, network_zones: zones })}
+            />
+          </div>
+
+          <div className="col-span-2">
             <label className="block text-xs text-gray-400 mb-2">Tags</label>
             <TagInput tags={form.tags} onChange={tags => setForm({ ...form, tags })} />
           </div>
@@ -253,6 +276,21 @@ export default function AssetDetail() {
           </div>
         ))}
       </div>
+
+      {/* Network Zones */}
+      {(asset as any).network_zones?.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Netzwerk-Zonen</div>
+          <div className="flex gap-2 flex-wrap">
+            {(asset as any).network_zones.map((zone: string) => (
+              <span key={zone} className="text-xs font-medium px-2.5 py-1 rounded-full border"
+                style={{ background: zoneColor(zone).bg, color: zoneColor(zone).text, borderColor: zoneColor(zone).border }}>
+                {zone}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tags */}
       <div className="flex gap-2 mb-6 flex-wrap">

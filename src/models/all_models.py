@@ -162,9 +162,15 @@ class Asset(Base):
     model: Mapped[Optional[str]] = mapped_column(String(200))
     firmware_version: Mapped[Optional[str]] = mapped_column(String(100))
 
-    # I-Layer: Exposure
+    # I-Layer: Exposure + Netzwerk-Zugehörigkeit
     exposure_level: Mapped[str] = mapped_column(String(20), default="INTERN")
-    # INTERN | DMZ | EXTERN
+    # INTERN | DMZ | EXTERN – höchste Risikostufe (für CVE-Impact)
+
+    network_zones: Mapped[Optional[list]] = mapped_column(ARRAY(String))
+    # Alle Netze in denen das Asset aktiv ist, z.B.:
+    # ["INTERN", "DMZ"]  oder  ["192.168.178.0/24", "10.0.0.0/8", "EXTERN"]
+    # Router/Firewalls haben typisch mehrere Einträge
+
     open_ports: Mapped[Optional[dict]] = mapped_column(JSONB, default=list)
     # [{"port": 22, "proto": "tcp", "reachable_from": ["internet"]}]
 

@@ -34,6 +34,7 @@ class AssetCreate(BaseModel):
     model: Optional[str] = None
     firmware_version: Optional[str] = None
     exposure_level: str = "INTERN"
+    network_zones: Optional[list[str]] = None
     open_ports: Optional[list] = None
     rack_id: Optional[str] = None
     rack_unit: Optional[int] = None
@@ -56,6 +57,7 @@ class AssetOut(BaseModel):
     os_name: Optional[str]
     os_version: Optional[str]
     exposure_level: str
+    network_zones: Optional[list[str]]
     open_ports: Optional[list]
     location: Optional[str]
     tags: Optional[list[str]]

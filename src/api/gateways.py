@@ -150,19 +150,38 @@ async def get_topology(
 ):
     """
     Netzwerk-Topologie als Graph:
-    Knoten = Segmente (INTERN, DMZ, EXTERN, VLANs...)
+    Knoten = Segmente (INTERN, DMZ, EXTERN, VLANs, CIDRs...)
     Kanten = Gateways (Router/Firewalls als Verbindungen)
-    """
-    result = await session.execute(select(NetworkGateway))
-    gateways = result.scalars().all()
 
-    # Alle Segmente als Knoten
+    Segmente kommen aus:
+      1. Explizit konfigurierten Gateways (from_segment / to_segment)
+      2. network_zones der Assets (Router/Firewalls die in mehreren Netzen sind)
+    """
+    gw_result = await session.execute(select(NetworkGateway))
+    gateways = gw_result.scalars().all()
+
+    # Assets mit network_zones laden
+    asset_result = await session.execute(
+        select(Asset).where(
+            Asset.is_active == True,
+            Asset.network_zones.is_not(None),
+        )
+    )
+    multi_zone_assets = asset_result.scalars().all()
+
     segments: set[str] = set()
+
+    # Segmente aus Gateways
     for gw in gateways:
         segments.add(gw.from_segment)
         segments.add(gw.to_segment)
 
-    # Falls keine Gateways: alle Exposure-Level als Fallback
+    # Segmente aus network_zones der Assets
+    for asset in multi_zone_assets:
+        for zone in (asset.network_zones or []):
+            segments.add(zone)
+
+    # Fallback
     if not segments:
         segments = {"INTERN", "DMZ", "EXTERN"}
 
@@ -177,7 +196,7 @@ async def get_topology(
             exposure=exposure_map.get(seg),
         ))
 
-    # Gateways als Kanten
+    # Kanten aus expliziten Gateways
     edges: list[TopologyEdge] = []
     for gw in gateways:
         asset = await session.get(Asset, gw.asset_id)
@@ -189,5 +208,26 @@ async def get_topology(
             asset_hostname=asset.hostname if asset else None,
             asset_ip=asset.ip_address if asset else None,
         ))
+
+    # Zusätzliche Kanten aus network_zones:
+    # Wenn ein Router in [INTERN, DMZ, EXTERN] ist → Kanten zwischen allen Zonen
+    gw_asset_ids = {gw.asset_id for gw in gateways}
+    for asset in multi_zone_assets:
+        if asset.id in gw_asset_ids:
+            continue  # bereits durch explizite Gateways abgedeckt
+        zones = asset.network_zones or []
+        if len(zones) >= 2:
+            # Kanten zwischen allen Zone-Paaren
+            for i, z1 in enumerate(zones):
+                for z2 in zones[i+1:]:
+                    if f"seg-{z1}" in {n.id for n in nodes} and f"seg-{z2}" in {n.id for n in nodes}:
+                        edges.append(TopologyEdge(
+                            from_id=f"seg-{z1}",
+                            to_id=f"seg-{z2}",
+                            gateway_name=asset.hostname or str(asset.ip_address),
+                            is_primary=False,
+                            asset_hostname=asset.hostname,
+                            asset_ip=asset.ip_address,
+                        ))
 
     return TopologyDiagram(nodes=nodes, edges=edges)
