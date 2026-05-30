@@ -9,6 +9,7 @@ import Chatbot from './pages/Chatbot'
 import Processes from './pages/Processes'
 import UserManagement from './pages/UserManagement'
 import ConflictQueue from './pages/ConflictQueue'
+import NetworkTopology from './pages/NetworkTopology'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -37,6 +38,7 @@ export default function App() {
                   <Route path="/processes" element={<Processes />} />
                   <Route path="/settings" element={<UserManagement />} />
                   <Route path="/conflicts" element={<ConflictQueue />} />
+                  <Route path="/topology" element={<NetworkTopology />} />
                 </Routes>
               </Layout>
             </RequireAuth>

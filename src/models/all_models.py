@@ -192,6 +192,7 @@ class Asset(Base):
     process_assets: Mapped[list["ProcessAsset"]] = relationship(back_populates="asset")
     cve_impacts: Mapped[list["CVEImpact"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     port_scans: Mapped[list["PortScan"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+    gateways: Mapped[list["NetworkGateway"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +252,35 @@ class PortScan(Base):
     scanned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     asset: Mapped["Asset"] = relationship(back_populates="port_scans")
+
+
+# ---------------------------------------------------------------------------
+# Network Gateways (I-Layer: Übergangspunkte zwischen Segmenten)
+# ---------------------------------------------------------------------------
+
+class NetworkGateway(Base):
+    """
+    Markiert ein Asset (Router/Firewall) als Gateway zwischen zwei Netzwerksegmenten.
+    Beispiele:
+      - MikroTik hAP:  INTERN → EXTERN  (Hauptrouter)
+      - FortiGate:     DMZ → INTERN     (Firewall)
+      - CRS-Switch:    VLAN-10 → VLAN-20 (L3-Switch)
+    """
+    __tablename__ = "network_gateways"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    from_segment: Mapped[str] = mapped_column(String(100), nullable=False)
+    # z.B. "INTERN", "192.168.178.0/24", "VLAN-10", "DMZ"
+    to_segment: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    asset: Mapped["Asset"] = relationship(back_populates="gateways")
 
 
 # ---------------------------------------------------------------------------
