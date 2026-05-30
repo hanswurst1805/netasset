@@ -8,9 +8,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
@@ -18,6 +17,13 @@ from src.core.identity import IdentityResolver
 from src.models.all_models import Asset, ConflictQueueEntry
 
 router = APIRouter()
+
+# Felder aus DiscoveredDevice die direkt in Asset übernommen werden können
+ASSET_FIELDS = {
+    "mac_address", "serial_number", "chassis_id", "hostname", "ip_address",
+    "fqdn", "asset_type", "os_name", "os_version", "manufacturer", "model",
+    "exposure_level", "open_ports", "tags",
+}
 
 
 class ConflictOut(BaseModel):
@@ -27,7 +33,7 @@ class ConflictOut(BaseModel):
     confidence: float
     matched_on: list[str]
     candidate_asset_id: Optional[uuid.UUID]
-    candidate_asset: Optional[dict]   # Basis-Infos des Kandidaten
+    candidate_asset: Optional[dict]
     status: str
     created_at: datetime
     model_config = {"from_attributes": True}
@@ -46,19 +52,13 @@ async def conflict_stats(
     _: AuthContext = Depends(get_current_user),
 ):
     """Zähler für Sidebar-Badge."""
-    from sqlalchemy import func, case
-    from sqlalchemy import select as sel
-    result = await session.execute(
-        sel(
-            func.count().filter(ConflictQueueEntry.status == "pending").label("pending"),
-            func.count().filter(ConflictQueueEntry.status == "merged").label("merged"),
-            func.count().filter(ConflictQueueEntry.status == "created").label("created"),
-            func.count().filter(ConflictQueueEntry.status == "discarded").label("discarded"),
+    stats = {"pending": 0, "merged": 0, "created": 0, "discarded": 0}
+    for status in stats:
+        result = await session.execute(
+            select(func.count()).where(ConflictQueueEntry.status == status)
         )
-    )
-    row = result.one()
-    return ConflictStats(pending=row.pending, merged=row.merged,
-                         created=row.created, discarded=row.discarded)
+        stats[status] = result.scalar() or 0
+    return ConflictStats(**stats)
 
 
 @router.get("", response_model=list[ConflictOut])
@@ -76,7 +76,6 @@ async def list_conflicts(
     result = await session.execute(stmt)
     entries = result.scalars().all()
 
-    # Kandidaten-Asset-Infos laden
     out = []
     for e in entries:
         candidate = None
@@ -131,7 +130,6 @@ async def resolve_merge(
     entry.resolved_by = ctx.username
     entry.resolved_at = datetime.now(timezone.utc)
     await session.flush()
-
     return {"status": "merged", "asset_id": str(asset.id)}
 
 
@@ -146,12 +144,18 @@ async def resolve_create(
     if not entry or entry.status != "pending":
         raise HTTPException(404, "Conflict nicht gefunden oder bereits aufgelöst")
 
-    data = {k: v for k, v in entry.incoming_data.items()
-            if k not in ("internal_id",) and v is not None}
-    asset = Asset(**{k: v for k, v in data.items()
-                     if hasattr(Asset, k)})
-    asset.sources = [{"origin": entry.source or "manual",
-                      "last_seen": datetime.now(timezone.utc).isoformat()}]
+    # Nur bekannte Asset-Felder übernehmen, None-Werte überspringen
+    asset_data = {
+        k: v for k, v in entry.incoming_data.items()
+        if k in ASSET_FIELDS and v is not None
+    }
+    asset = Asset(**asset_data)
+    asset.sources = [{
+        "origin": entry.source or "manual",
+        "last_seen": datetime.now(timezone.utc).isoformat(),
+        "priority": 0,
+        "fields": list(asset_data.keys()),
+    }]
     session.add(asset)
     await session.flush()
 
@@ -160,7 +164,6 @@ async def resolve_create(
     entry.resolved_at = datetime.now(timezone.utc)
     entry.candidate_asset_id = asset.id
     await session.flush()
-
     return {"status": "created", "asset_id": str(asset.id)}
 
 
@@ -179,5 +182,4 @@ async def resolve_discard(
     entry.resolved_by = ctx.username
     entry.resolved_at = datetime.now(timezone.utc)
     await session.flush()
-
     return {"status": "discarded"}
