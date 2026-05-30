@@ -143,7 +143,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
           <div className="col-span-2">
             <label className="block text-xs text-gray-400 mb-1">
               Netzwerk-Zonen
-              <span className="text-gray-600 ml-2 font-normal">Alle Netze in denen das Asset aktiv ist (z.B. INTERN, DMZ, 192.168.1.0/24)</span>
+              <span className="text-gray-600 ml-2 font-normal">Namen der Netze (z.B. INTERN, DMZ, Heimnetz, Office-LAN)</span>
             </label>
             <TagInput
               tags={form.network_zones}

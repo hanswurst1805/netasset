@@ -64,11 +64,9 @@ async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None
 
     if matched:
         asset.network_id = matched.id
-        # network_zones automatisch um den Netz-Namen ergänzen
+        # network_zones: nur den Namen hinzufügen (CIDR steht in ip_networks.cidr)
         zones = set(asset.network_zones or [])
         zones.add(matched.name)
-        # Auch CIDR als Zone hinzufügen wenn noch nicht drin
-        zones.add(matched.cidr)
         # Exposure aus Netz übernehmen wenn höher als aktuelles
         exp_rank = {"INTERN": 0, "DMZ": 1, "EXTERN": 2}
         if exp_rank.get(matched.exposure_level, 0) > exp_rank.get(asset.exposure_level, 0):
