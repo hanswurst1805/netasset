@@ -33,7 +33,7 @@ def generate_api_key() -> tuple[str, str, str]:
     """Gibt (raw_key, prefix, hash) zurück. raw_key wird nur einmal angezeigt."""
     raw = "sk-na-" + secrets.token_urlsafe(32)
     prefix = raw[:12]
-    hashed = pwd_context.hash(raw)
+    hashed = hash_password(raw)
     return raw, prefix, hashed
 
 def create_access_token(user_id: str, role: str, allowed_tags: list[str]) -> str:
