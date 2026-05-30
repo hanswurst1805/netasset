@@ -254,6 +254,31 @@ class PortScan(Base):
 
 
 # ---------------------------------------------------------------------------
+# Conflict Queue
+# ---------------------------------------------------------------------------
+
+class ConflictQueueEntry(Base):
+    """Eingehende Geräte-Daten die nicht eindeutig zugeordnet werden konnten."""
+    __tablename__ = "conflict_queue"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    incoming_data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    source: Mapped[Optional[str]] = mapped_column(String(100))
+    confidence: Mapped[Optional[float]] = mapped_column(Float)
+    matched_on: Mapped[Optional[list]] = mapped_column(ARRAY(String))
+    candidate_asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    # pending | merged | created | discarded
+    resolved_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    candidate_asset: Mapped[Optional["Asset"]] = relationship()
+
+
+# ---------------------------------------------------------------------------
 # CVE-Einträge (RAG-Basis)
 # ---------------------------------------------------------------------------
 

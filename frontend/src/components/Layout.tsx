@@ -1,6 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut } from 'lucide-react'
+import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut, AlertTriangle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { fetchConflictCount } from '../pages/ConflictQueue'
 
 const nav = [
   { to: '/assets',    icon: Server,        label: 'Assets' },
@@ -11,6 +13,11 @@ const nav = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const { data: conflictCount = 0 } = useQuery({
+    queryKey: ['conflict-stats'],
+    queryFn: fetchConflictCount,
+    refetchInterval: 60_000,
+  })
 
   function logout() {
     api.auth.logout()
@@ -44,6 +51,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="p-2 border-t border-gray-800 space-y-1">
+          <NavLink
+            to="/conflicts"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                isActive ? 'bg-yellow-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100'
+              }`
+            }
+          >
+            <AlertTriangle size={16} />
+            Konflikte
+            {conflictCount > 0 && (
+              <span className="ml-auto bg-yellow-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                {conflictCount}
+              </span>
+            )}
+          </NavLink>
+
           <NavLink
             to="/settings"
             className={({ isActive }) =>

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-from src.api import applications, assets, auth, cve, discovery, obashi, owners, processes, sbom
+from src.api import applications, assets, auth, conflicts, cve, discovery, obashi, owners, processes, sbom
 from src.core.auth import hash_password
 from src.core.config import settings
 from src.core.database import async_session_factory
@@ -63,6 +63,7 @@ app.include_router(cve.router,       prefix="/api/v1/cve",      tags=["CVE & Sec
 app.include_router(processes.router, prefix="/api/v1/processes", tags=["Business Processes"])
 app.include_router(obashi.router,       prefix="/api/v1",                tags=["OBASHI"])
 app.include_router(owners.router,       prefix="/api/v1/owners",         tags=["Owners"])
+app.include_router(conflicts.router,    prefix="/api/v1/conflicts",      tags=["Conflicts"])
 app.include_router(applications.router, prefix="/api/v1/applications",   tags=["Applications"])
 app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discovery"])
 

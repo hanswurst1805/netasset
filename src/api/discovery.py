@@ -1,5 +1,9 @@
 """Discovery-Ingest API – nimmt automatisch erkannte Geräte entgegen."""
 
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
 from src.core.identity import DeviceFingerprint, IdentityResolver, MatchResult
-from src.models.all_models import Asset
+from src.models.all_models import Asset, ConflictQueueEntry
 
 router = APIRouter()
 
@@ -38,7 +42,7 @@ class IngestResult(BaseModel):
     asset_id: Optional[str]
     confidence: float
     matched_on: list[str]
-    action: str  # created | merged | flagged
+    action: str  # created | merged | queued
 
 
 @router.post("/ingest", response_model=list[IngestResult])
@@ -48,7 +52,9 @@ async def ingest_devices(
 ):
     """
     Bulk-Ingest: Liste erkannter Geräte.
-    Jedes Gerät wird durch den IdentityResolver geschickt.
+    MATCH  → automatisch mergen
+    NEW    → neues Asset anlegen
+    CONFLICT → in Conflict Queue zur manuellen Prüfung
     """
     if not devices:
         raise HTTPException(400, "Keine Geräte übergeben")
@@ -70,7 +76,7 @@ async def ingest_devices(
         )
 
         identity = await resolver.resolve(fp)
-        action = "flagged"
+        action = "queued"
 
         if identity.result == MatchResult.MATCH and identity.asset_id:
             merge_data = device.model_dump(exclude={"internal_id", "source"}, exclude_none=True)
@@ -84,12 +90,25 @@ async def ingest_devices(
                 exclude_none=True,
             )
             asset = Asset(**asset_data)
-            if device.source:
-                asset.sources = [{"origin": device.source}]
+            asset.sources = [{"origin": device.source, "last_seen": datetime.now(timezone.utc).isoformat()}]
             session.add(asset)
             await session.flush()
             identity.asset_id = asset.id
             action = "created"
+
+        elif identity.result == MatchResult.CONFLICT:
+            # → Conflict Queue: Operator entscheidet
+            entry = ConflictQueueEntry(
+                incoming_data=device.model_dump(),
+                source=device.source,
+                confidence=identity.confidence,
+                matched_on=identity.matched_on,
+                candidate_asset_id=identity.asset_id,
+                status="pending",
+            )
+            session.add(entry)
+            await session.flush()
+            action = "queued"
 
         results.append(
             IngestResult(
