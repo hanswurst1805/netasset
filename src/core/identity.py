@@ -26,6 +26,7 @@ from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from src.models.all_models import Asset
 
@@ -249,6 +250,7 @@ class IdentityResolver:
         # open_ports: IMMER mergen (Union)
         if "open_ports" in new_data and new_data["open_ports"]:
             asset.open_ports = _merge_ports(asset.open_ports, new_data["open_ports"])
+            flag_modified(asset, "open_ports")  # JSONB Mutation explizit markieren
             updated_fields.append("open_ports")
 
         # tags: IMMER additiv
@@ -256,6 +258,7 @@ class IdentityResolver:
             existing_tags = set(asset.tags or [])
             existing_tags.update(new_data["tags"])
             asset.tags = list(existing_tags)
+            flag_modified(asset, "tags")
 
         # sources: Protokoll aktualisieren
         sources = list(existing_sources.values())
@@ -267,6 +270,7 @@ class IdentityResolver:
             "fields":     updated_fields,
         })
         asset.sources = sources
+        flag_modified(asset, "sources")
 
         await self.session.flush()
         return asset
