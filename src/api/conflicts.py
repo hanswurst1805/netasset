@@ -128,7 +128,7 @@ async def resolve_merge(
 
     entry.status = "merged"
     entry.resolved_by = ctx.username
-    entry.resolved_at = datetime.now(timezone.utc)
+    entry.resolved_at = datetime.utcnow()
     await session.flush()
     return {"status": "merged", "asset_id": str(asset.id)}
 
@@ -161,7 +161,7 @@ async def resolve_create(
 
     entry.status = "created"
     entry.resolved_by = ctx.username
-    entry.resolved_at = datetime.now(timezone.utc)
+    entry.resolved_at = datetime.utcnow()
     entry.candidate_asset_id = asset.id
     await session.flush()
     return {"status": "created", "asset_id": str(asset.id)}
@@ -180,6 +180,6 @@ async def resolve_discard(
 
     entry.status = "discarded"
     entry.resolved_by = ctx.username
-    entry.resolved_at = datetime.now(timezone.utc)
+    entry.resolved_at = datetime.utcnow()
     await session.flush()
     return {"status": "discarded"}
