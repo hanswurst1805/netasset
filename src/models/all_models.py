@@ -197,6 +197,8 @@ class Asset(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Wird bei jedem Collector-Report aktualisiert (auch wenn keine Daten geändert wurden)
 
     # Relations
     sbom_entries: Mapped[list["SBOMEntry"]] = relationship(back_populates="asset", cascade="all, delete-orphan")

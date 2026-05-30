@@ -3,6 +3,7 @@
 import uuid
 from typing import Optional
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -62,6 +63,8 @@ class AssetOut(BaseModel):
     location: Optional[str]
     tags: Optional[list[str]]
     is_active: bool
+    last_seen_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

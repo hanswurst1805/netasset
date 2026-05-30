@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
 import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check } from 'lucide-react'
+import LastSeen from '../components/LastSeen'
 
 // ---------------------------------------------------------------------------
 // Tag-Eingabe
@@ -257,7 +258,10 @@ export default function AssetDetail() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">{asset.hostname ?? asset.ip_address}</h1>
-          <p className="text-gray-500 text-sm mt-1">{asset.fqdn ?? asset.ip_address}</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-500 text-sm">{asset.fqdn ?? asset.ip_address}</p>
+            <LastSeen date={(asset as any).last_seen_at} />
+          </div>
         </div>
         <Badge value={asset.exposure_level} />
       </div>

@@ -92,6 +92,7 @@ async def ingest_devices(
             )
             asset = Asset(**asset_data)
             asset.sources = [{"origin": device.source, "last_seen": datetime.now(timezone.utc).isoformat()}]
+            asset.last_seen_at = datetime.utcnow()
             session.add(asset)
             await session.flush()
             # Automatische Netzwerk-Zuordnung per IP

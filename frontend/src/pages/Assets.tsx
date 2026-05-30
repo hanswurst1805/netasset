@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import Badge from '../components/Badge'
 import { Search, Trash2 } from 'lucide-react'
+import LastSeen from '../components/LastSeen'
 
 const TYPES = ['', 'server', 'switch', 'router', 'firewall', 'client']
 const EXPOSURES = ['', 'INTERN', 'DMZ', 'EXTERN']
@@ -79,6 +80,7 @@ export default function Assets() {
               <th className="text-left px-4 py-3">OS</th>
               <th className="text-left px-4 py-3">Exposure</th>
               <th className="text-left px-4 py-3">Tags</th>
+              <th className="text-left px-4 py-3">Zuletzt gesehen</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -111,6 +113,9 @@ export default function Assets() {
                       <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{tag}</span>
                     ))}
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  <LastSeen date={(asset as any).last_seen_at} />
                 </td>
                 <td className="px-4 py-3 text-right">
                   {confirmId === asset.id ? (

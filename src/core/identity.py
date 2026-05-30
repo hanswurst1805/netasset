@@ -20,7 +20,7 @@ Merge-Strategie:
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from enum import Enum
 from typing import Optional
 
@@ -271,6 +271,9 @@ class IdentityResolver:
         })
         asset.sources = sources
         flag_modified(asset, "sources")
+
+        # last_seen_at: immer aktualisieren (auch ohne Daten-Änderungen)
+        asset.last_seen_at = datetime.utcnow()
 
         await self.session.flush()
         return asset
