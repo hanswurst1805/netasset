@@ -86,18 +86,54 @@ async def test_resolve_invalid_uuid(session: AsyncSession):
 
 
 async def test_merge_data(session: AsyncSession, asset: Asset):
-    """merge_data aktualisiert Felder, None-Werte werden ignoriert."""
+    """merge_data: Felder werden prioritätsbasiert gemergt."""
     resolver = IdentityResolver(session)
+
+    # Erst mit niedrigerer Quelle (nmap)
     await resolver.merge_data(asset.id, {
         "ip_address": "10.0.0.100",
-        "os_name": "Ubuntu",
-        "hostname": None,  # soll ignoriert werden
+        "os_name": "Linux (nmap-guess)",
+        "hostname": None,   # None → ignoriert
         "tags": ["new-tag"],
-        "source": "nmap",
+        "source": "nmap-discovery",
     })
     await session.refresh(asset)
     assert asset.ip_address == "10.0.0.100"
-    assert asset.os_name == "Ubuntu"
-    assert asset.hostname == "testhost-01"  # nicht überschrieben
+    assert asset.os_name == "Linux (nmap-guess)"
+    assert asset.hostname == "testhost-01"  # None wurde ignoriert
     assert "new-tag" in asset.tags
-    assert any(s["origin"] == "nmap" for s in asset.sources)
+    assert any(s["origin"] == "nmap-discovery" for s in asset.sources)
+
+    # Dann mit höherer Quelle (osquery) → überschreibt os_name
+    await resolver.merge_data(asset.id, {
+        "os_name": "Ubuntu 22.04",
+        "source": "osquery",
+    })
+    await session.refresh(asset)
+    assert asset.os_name == "Ubuntu 22.04"  # osquery > nmap
+
+    # Nochmal nmap → darf os_name NICHT überschreiben
+    await resolver.merge_data(asset.id, {
+        "os_name": "Linux (nmap-guess-2)",
+        "source": "nmap-discovery",
+    })
+    await session.refresh(asset)
+    assert asset.os_name == "Ubuntu 22.04"  # nmap < osquery → kein Überschreiben
+
+
+async def test_merge_ports_additive(session: AsyncSession, asset: Asset):
+    """open_ports werden aus allen Quellen zusammengeführt."""
+    resolver = IdentityResolver(session)
+
+    await resolver.merge_data(asset.id, {
+        "open_ports": [{"port": 22, "proto": "tcp", "reachable_from": ["intern"]}],
+        "source": "nmap-discovery",
+    })
+    await resolver.merge_data(asset.id, {
+        "open_ports": [{"port": 443, "proto": "tcp", "reachable_from": ["internet"]}],
+        "source": "fritzbox-hosts",
+    })
+    await session.refresh(asset)
+    ports = {p["port"] for p in (asset.open_ports or [])}
+    assert 22 in ports
+    assert 443 in ports  # beide Ports erhalten
