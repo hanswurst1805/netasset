@@ -101,7 +101,7 @@ async def _user_from_api_key(raw_key: str, session: AsyncSession) -> Optional[Au
         return None
 
     # last_used aktualisieren
-    api_key.last_used_at = datetime.now(timezone.utc)
+    api_key.last_used_at = datetime.utcnow()
     await session.flush()
 
     # Tags: explizite Key-Tags überschreiben User-Tags
