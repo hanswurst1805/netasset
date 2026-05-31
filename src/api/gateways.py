@@ -281,8 +281,10 @@ async def get_topology(
         for name, info in sorted(segments.items())
     ]
 
-    # Kanten NUR aus explizit konfigurierten Gateways
+    # Kanten: 1. explizit konfigurierte Gateways
     edges: list[TopologyEdge] = []
+    explicit_pairs: set[tuple] = set()
+
     for gw in gateways:
         asset = await session.get(Asset, gw.asset_id)
         edges.append(TopologyEdge(
@@ -293,5 +295,55 @@ async def get_topology(
             asset_hostname=asset.hostname if asset else None,
             asset_ip=asset.ip_address if asset else None,
         ))
+        explicit_pairs.add((gw.from_segment, gw.to_segment))
+        explicit_pairs.add((gw.to_segment, gw.from_segment))
+
+    # 2. Router/Firewall-Assets mit 2+ Zonen → automatisch als Kanten
+    from itertools import combinations as _comb
+    GATEWAY_TYPES = {"router", "firewall"}
+
+    router_result = await session.execute(
+        select(Asset).where(
+            Asset.is_active == True,
+            Asset.asset_type.in_(GATEWAY_TYPES),
+            Asset.network_zones.is_not(None),
+        )
+    )
+    router_assets = router_result.scalars().all()
+    segment_ids = {n.id for n in nodes}
+
+    for asset in router_assets:
+        zones = [z for z in (asset.network_zones or []) if f"seg-{z}" in segment_ids]
+        if len(zones) < 2:
+            continue
+        label = asset.hostname or asset.ip_address or str(asset.id)
+        for z1, z2 in _comb(sorted(set(zones)), 2):
+            if (z1, z2) in explicit_pairs or (z2, z1) in explicit_pairs:
+                continue  # bereits durch expliziten Gateway abgedeckt
+            edges.append(TopologyEdge(
+                from_id=f"seg-{z1}",
+                to_id=f"seg-{z2}",
+                gateway_name=label,
+                is_primary=False,
+                asset_hostname=asset.hostname,
+                asset_ip=asset.ip_address,
+            ))
+            # connected-Flag für beide Segmente setzen
+            connected_segs.add(z1)
+            connected_segs.add(z2)
+
+    # Nodes mit aktualisiertem connected-Flag neu bauen
+    nodes = [
+        TopologyNode(
+            id=f"seg-{name}",
+            type="segment",
+            label=name,
+            exposure=info.get("exposure"),
+            cidr=info.get("cidr"),
+            asset_count=asset_counts.get(name, 0),
+            connected=name in connected_segs,
+        )
+        for name, info in sorted(segments.items())
+    ]
 
     return TopologyDiagram(nodes=nodes, edges=edges)
