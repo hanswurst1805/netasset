@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
+import ReportViewer from '../components/ReportViewer'
 
 // ---------------------------------------------------------------------------
 // Tag-Eingabe
@@ -189,7 +190,7 @@ export default function AssetDetail() {
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [tab, setTab] = useState<'info' | 'history'>('info')
+  const [tab, setTab] = useState<'info' | 'history' | 'reports'>('info')
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -303,6 +304,7 @@ export default function AssetDetail() {
         {[
           { id: 'info', label: 'Details' },
           { id: 'history', label: 'Verlauf', icon: History },
+          { id: 'reports', label: 'Reports', icon: FileText },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -321,6 +323,12 @@ export default function AssetDetail() {
       {tab === 'history' && (
         <section className="mb-6">
           <SnapshotTimeline assetId={id!} />
+        </section>
+      )}
+
+      {tab === 'reports' && (
+        <section className="mb-6">
+          <ReportViewer assetId={id!} />
         </section>
       )}
 
