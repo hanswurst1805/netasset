@@ -149,54 +149,51 @@ async def get_topology(
     _: AuthContext = Depends(get_current_user),
 ):
     """
-    Netzwerk-Topologie als Graph:
-    Knoten = Segmente (INTERN, DMZ, EXTERN, VLANs, CIDRs...)
-    Kanten = Gateways (Router/Firewalls als Verbindungen)
-
-    Segmente kommen aus:
-      1. Explizit konfigurierten Gateways (from_segment / to_segment)
-      2. network_zones der Assets (Router/Firewalls die in mehreren Netzen sind)
+    Netzwerk-Topologie als Graph.
+    Segmente = definierte IP-Netzwerke + Gateway-Segmente.
+    Kanten = ausschließlich explizit konfigurierte Gateways.
     """
+    from src.models.all_models import IpNetwork
+
     gw_result = await session.execute(select(NetworkGateway))
     gateways = gw_result.scalars().all()
 
-    # Assets mit network_zones laden
-    asset_result = await session.execute(
-        select(Asset).where(
-            Asset.is_active == True,
-            Asset.network_zones.is_not(None),
-        )
-    )
-    multi_zone_assets = asset_result.scalars().all()
+    # Segmente: primär aus definierten IP-Netzwerken
+    net_result = await session.execute(select(IpNetwork).order_by(IpNetwork.name))
+    ip_networks = net_result.scalars().all()
 
-    segments: set[str] = set()
+    segments: dict[str, dict] = {}  # name → {exposure, cidr}
 
-    # Segmente aus Gateways
+    # 1. IP-Netzwerke als Segmente
+    for net in ip_networks:
+        segments[net.name] = {
+            "exposure": net.exposure_level,
+            "cidr": net.cidr,
+        }
+
+    # 2. Gateway-Segmente (from/to) — falls nicht schon als IP-Netz vorhanden
     for gw in gateways:
-        segments.add(gw.from_segment)
-        segments.add(gw.to_segment)
+        for seg in (gw.from_segment, gw.to_segment):
+            if seg not in segments:
+                exp = seg if seg in ("INTERN", "DMZ", "EXTERN") else None
+                segments[seg] = {"exposure": exp, "cidr": None}
 
-    # Segmente aus network_zones der Assets
-    for asset in multi_zone_assets:
-        for zone in (asset.network_zones or []):
-            segments.add(zone)
-
-    # Fallback
+    # Fallback: Standard-Segmente wenn gar nichts definiert
     if not segments:
-        segments = {"INTERN", "DMZ", "EXTERN"}
+        for s in ("INTERN", "DMZ", "EXTERN"):
+            segments[s] = {"exposure": s, "cidr": None}
 
-    exposure_map = {"INTERN": "INTERN", "DMZ": "DMZ", "EXTERN": "EXTERN"}
-
-    nodes: list[TopologyNode] = []
-    for seg in sorted(segments):
-        nodes.append(TopologyNode(
-            id=f"seg-{seg}",
+    nodes: list[TopologyNode] = [
+        TopologyNode(
+            id=f"seg-{name}",
             type="segment",
-            label=seg,
-            exposure=exposure_map.get(seg),
-        ))
+            label=name,
+            exposure=info.get("exposure"),
+        )
+        for name, info in sorted(segments.items())
+    ]
 
-    # Kanten aus expliziten Gateways
+    # Kanten NUR aus explizit konfigurierten Gateways
     edges: list[TopologyEdge] = []
     for gw in gateways:
         asset = await session.get(Asset, gw.asset_id)
@@ -208,26 +205,5 @@ async def get_topology(
             asset_hostname=asset.hostname if asset else None,
             asset_ip=asset.ip_address if asset else None,
         ))
-
-    # Zusätzliche Kanten aus network_zones:
-    # Wenn ein Router in [INTERN, DMZ, EXTERN] ist → Kanten zwischen allen Zonen
-    gw_asset_ids = {gw.asset_id for gw in gateways}
-    for asset in multi_zone_assets:
-        if asset.id in gw_asset_ids:
-            continue  # bereits durch explizite Gateways abgedeckt
-        zones = asset.network_zones or []
-        if len(zones) >= 2:
-            # Kanten zwischen allen Zone-Paaren
-            for i, z1 in enumerate(zones):
-                for z2 in zones[i+1:]:
-                    if f"seg-{z1}" in {n.id for n in nodes} and f"seg-{z2}" in {n.id for n in nodes}:
-                        edges.append(TopologyEdge(
-                            from_id=f"seg-{z1}",
-                            to_id=f"seg-{z2}",
-                            gateway_name=asset.hostname or str(asset.ip_address),
-                            is_primary=False,
-                            asset_hostname=asset.hostname,
-                            asset_ip=asset.ip_address,
-                        ))
 
     return TopologyDiagram(nodes=nodes, edges=edges)
