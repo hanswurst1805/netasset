@@ -57,32 +57,49 @@ async def classify_asset(asset: Asset, session: AsyncSession) -> Optional[IpNetw
 
 async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None:
     """
-    Klassifiziert ein Asset und setzt network_id + aktualisiert network_zones.
-    Wird bei jedem Asset-Import aufgerufen.
+    Klassifiziert ein Asset anhand ALLER IP-Adressen (primär + additional_ips).
+    - network_id   → Netz der primären IP
+    - network_zones → Netznamen aller passenden IPs
     """
-    matched = await classify_asset(asset, session)
+    exp_rank = {"INTERN": 0, "DMZ": 1, "EXTERN": 2}
+    zones = set(asset.network_zones or [])
 
+    # 1. Primäre IP → network_id
+    matched = await classify_asset(asset, session)
     if matched:
         asset.network_id = matched.id
-        # network_zones: nur den Namen hinzufügen (CIDR steht in ip_networks.cidr)
-        zones = set(asset.network_zones or [])
         zones.add(matched.name)
-        # Exposure aus Netz übernehmen wenn höher als aktuelles
-        exp_rank = {"INTERN": 0, "DMZ": 1, "EXTERN": 2}
         if exp_rank.get(matched.exposure_level, 0) > exp_rank.get(asset.exposure_level, 0):
             asset.exposure_level = matched.exposure_level
-        asset.network_zones = list(zones)
-        log.debug("Asset %s → Netz '%s' (%s)", asset.ip_address, matched.name, matched.cidr)
+        log.debug("Asset %s → Netz '%s'", asset.ip_address, matched.name)
     else:
-        # Kein Netz gefunden → veraltete network_id löschen
         if asset.network_id:
             asset.network_id = None
 
-    # Asset in 2+ Netzwerk-Zonen → automatisch Router (unabhängig vom Match)
-    zone_count = len(asset.network_zones or [])
-    if zone_count >= 2 and asset.asset_type not in ("router", "firewall"):
+    # 2. Zusätzliche IPs → weitere network_zones
+    for extra_ip in (getattr(asset, "additional_ips", None) or []):
+        if not extra_ip:
+            continue
+        # Temporäres Objekt mit der extra IP für den Classifier
+        extra_matched = None
+        result = await session.execute(select(IpNetwork))
+        for net in result.scalars().all():
+            if ip_in_network(extra_ip, net.cidr):
+                extra_matched = net
+                break
+        if extra_matched:
+            zones.add(extra_matched.name)
+            if exp_rank.get(extra_matched.exposure_level, 0) > exp_rank.get(asset.exposure_level, 0):
+                asset.exposure_level = extra_matched.exposure_level
+            log.debug("Asset %s (additional %s) → Netz '%s'",
+                      asset.ip_address, extra_ip, extra_matched.name)
+
+    asset.network_zones = list(zones)
+
+    # 3. Asset in 2+ Netzwerk-Zonen → automatisch Router
+    if len(zones) >= 2 and asset.asset_type not in ("router", "firewall"):
         log.info("Asset %s hat %d Zonen → asset_type=router",
-                 asset.ip_address or asset.hostname, zone_count)
+                 asset.ip_address or asset.hostname, len(zones))
         asset.asset_type = "router"
 
 
