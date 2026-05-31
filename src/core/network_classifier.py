@@ -19,10 +19,11 @@ log = logging.getLogger(__name__)
 
 def ip_in_network(ip_str: str, cidr: str) -> bool:
     """Prüft ob eine IP-Adresse in einem CIDR-Netz liegt (inkl. /32 Einzelhost-Netze)."""
+    if not ip_str or not ip_str.strip():
+        return False
     try:
-        ip  = ipaddress.ip_address(ip_str)
+        ip  = ipaddress.ip_address(ip_str.strip())
         net = ipaddress.ip_network(cidr, strict=False)
-        # ip in net: inklusiv, d.h. /32 matcht den exakten Host
         return ip in net
     except ValueError:
         return False
@@ -112,7 +113,11 @@ async def reclassify_all(session: AsyncSession) -> int:
     # Alle Netze und Assets laden
     networks = (await session.execute(select(IpNetwork))).scalars().all()
     assets = (await session.execute(
-        select(Asset).where(Asset.is_active == True, Asset.ip_address.is_not(None))
+        select(Asset).where(
+            Asset.is_active == True,
+            Asset.ip_address.is_not(None),
+            Asset.ip_address != "",
+        )
     )).scalars().all()
 
     log.info("Reklassifizierung: %d Assets, %d Netze", len(assets), len(networks))
