@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,11 +45,13 @@ class GatewayOut(BaseModel):
 
 
 class TopologyNode(BaseModel):
-    id: str           # Segment-Name
-    type: str         # "segment" | "gateway"
+    id: str
+    type: str         # "segment"
     label: str
     exposure: Optional[str] = None
-    asset_id: Optional[str] = None
+    cidr: Optional[str] = None
+    asset_count: int = 0
+    connected: bool = False  # hat mindestens eine Gateway-Verbindung
 
 
 class TopologyEdge(BaseModel):
@@ -131,6 +133,72 @@ async def create_gateway(
     )
 
 
+@router.post("/auto-detect", response_model=dict)
+async def auto_detect_gateways(
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    """
+    Erkennt automatisch Gateways aus Assets:
+    - Router/Firewall mit 2+ network_zones → je eine Gateway-Kante pro Zone-Paar
+    - Existierende Gateways werden nicht dupliziert
+    """
+    from src.models.all_models import IpNetwork
+    from itertools import combinations
+
+    GATEWAY_TYPES = {"router", "firewall", "switch"}
+
+    # Kandidaten: Router/Firewalls mit mehreren Netzwerk-Zonen
+    result = await session.execute(
+        select(Asset).where(
+            Asset.is_active == True,
+            Asset.asset_type.in_(GATEWAY_TYPES),
+            Asset.network_zones.is_not(None),
+        )
+    )
+    candidates = result.scalars().all()
+
+    # Existierende Gateway-Paare laden (zur Duplikat-Prüfung)
+    existing = await session.execute(select(NetworkGateway))
+    existing_pairs = {
+        (gw.from_segment, gw.to_segment)
+        for gw in existing.scalars().all()
+    }
+
+    created = 0
+    skipped = 0
+
+    for asset in candidates:
+        zones = [z for z in (asset.network_zones or []) if z]
+        if len(zones) < 2:
+            continue
+
+        label = asset.hostname or asset.ip_address or str(asset.id)
+
+        # Alle Zone-Paare als Gateway anlegen
+        for z1, z2 in combinations(sorted(set(zones)), 2):
+            pair = (z1, z2)
+            pair_rev = (z2, z1)
+            if pair in existing_pairs or pair_rev in existing_pairs:
+                skipped += 1
+                continue
+
+            gw = NetworkGateway(
+                asset_id=asset.id,
+                name=f"{label}: {z1} ↔ {z2}",
+                from_segment=z1,
+                to_segment=z2,
+                is_primary=False,
+                description=f"Automatisch erkannt ({asset.asset_type})",
+            )
+            session.add(gw)
+            existing_pairs.add(pair)
+            created += 1
+
+    await session.flush()
+    return {"created": created, "skipped": skipped}
+
+
 @router.delete("/{gateway_id}", status_code=204)
 async def delete_gateway(
     gateway_id: uuid.UUID,
@@ -183,12 +251,32 @@ async def get_topology(
         for s in ("INTERN", "DMZ", "EXTERN"):
             segments[s] = {"exposure": s, "cidr": None}
 
+    # Asset-Counts pro Segment laden
+    asset_counts: dict[str, int] = {}
+    for net in ip_networks:
+        count_result = await session.execute(
+            select(func.count()).where(
+                Asset.network_id == net.id,
+                Asset.is_active == True,
+            )
+        )
+        asset_counts[net.name] = count_result.scalar() or 0
+
+    # Verbundene Segmente ermitteln
+    connected_segs = set()
+    for gw in gateways:
+        connected_segs.add(gw.from_segment)
+        connected_segs.add(gw.to_segment)
+
     nodes: list[TopologyNode] = [
         TopologyNode(
             id=f"seg-{name}",
             type="segment",
             label=name,
             exposure=info.get("exposure"),
+            cidr=info.get("cidr"),
+            asset_count=asset_counts.get(name, 0),
+            connected=name in connected_segs,
         )
         for name, info in sorted(segments.items())
     ]
