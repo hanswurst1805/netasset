@@ -292,6 +292,30 @@ class IpNetwork(Base):
 
 
 # ---------------------------------------------------------------------------
+# Asset Snapshots (tägliche Zustandssicherung)
+# ---------------------------------------------------------------------------
+
+class AssetSnapshot(Base):
+    """Täglicher Snapshot des Asset-Zustands. Max. 30 pro Asset."""
+    __tablename__ = "asset_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), index=True
+    )
+    snapshot_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # Vollständiger Zustand als JSON
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    # Diff zum vorherigen Snapshot (None beim ersten)
+    diff: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("asset_id", "snapshot_date", name="uq_snapshot_asset_date"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Network Gateways (I-Layer: Übergangspunkte zwischen Segmenten)
 # ---------------------------------------------------------------------------
 

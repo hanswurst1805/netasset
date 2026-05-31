@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
+import SnapshotTimeline from '../components/SnapshotTimeline'
 
 // ---------------------------------------------------------------------------
 // Tag-Eingabe
@@ -188,6 +189,7 @@ export default function AssetDetail() {
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [tab, setTab] = useState<'info' | 'history'>('info')
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -296,6 +298,34 @@ export default function AssetDetail() {
         </div>
       )}
 
+      {/* Tab-Navigation */}
+      <div className="flex gap-1 mb-6 border-b border-gray-800 pb-0">
+        {[
+          { id: 'info', label: 'Details' },
+          { id: 'history', label: 'Verlauf', icon: History },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id as any)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm border-b-2 transition-colors ${
+              tab === id
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {Icon && <Icon size={13} />}{label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'history' && (
+        <section className="mb-6">
+          <SnapshotTimeline assetId={id!} />
+        </section>
+      )}
+
+      {tab === 'info' && <>
+
       {/* Tags */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {(asset.tags ?? []).map(tag => (
@@ -372,6 +402,8 @@ export default function AssetDetail() {
           </table>
         </div>
       </section>
+
+      </>}
 
       {/* Edit Modal */}
       {editing && <EditModal asset={asset} onClose={() => setEditing(false)} />}
