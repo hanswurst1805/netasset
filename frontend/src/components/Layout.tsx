@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut, AlertTriangle, Network, Globe, BarChart2 } from 'lucide-react'
+import { Server, ShieldAlert, MessageSquare, Workflow, Settings, LogOut, AlertTriangle, Network, Globe, BarChart2, CreditCard } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { fetchConflictCount } from '../pages/ConflictQueue'
@@ -7,6 +7,7 @@ import { fetchConflictCount } from '../pages/ConflictQueue'
 const nav = [
   { to: '/assets',    icon: Server,        label: 'Assets' },
   { to: '/reporting', icon: BarChart2,     label: 'Reports' },
+  { to: '/cards',     icon: CreditCard,   label: 'Karteikarten' },
   { to: '/networks',  icon: Globe,         label: 'Netzwerke' },
   { to: '/topology',  icon: Network,       label: 'Topologie' },
   { to: '/cve',       icon: ShieldAlert,   label: 'CVE Dashboard' },

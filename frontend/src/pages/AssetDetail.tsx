@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
@@ -241,7 +241,10 @@ export default function AssetDetail() {
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [tab, setTab] = useState<'info' | 'history' | 'reports'>('info')
+  const [tab, setTab] = useState<'info' | 'history' | 'reports' | 'card'>('info')
+  const [cardTemplate, setCardTemplate] = useState('full')
+  const [cardPreview, setCardPreview] = useState('')
+  const [cardLoading, setCardLoading] = useState(false)
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['asset', id],
@@ -356,6 +359,7 @@ export default function AssetDetail() {
           { id: 'info', label: 'Details' },
           { id: 'history', label: 'Verlauf', icon: History },
           { id: 'reports', label: 'Reports', icon: FileText },
+          { id: 'card', label: 'Karteikarte', icon: CreditCard },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -380,6 +384,79 @@ export default function AssetDetail() {
       {tab === 'reports' && (
         <section className="mb-6">
           <ReportViewer assetId={id!} />
+        </section>
+      )}
+
+      {tab === 'card' && (
+        <section className="mb-6">
+          <div className="space-y-3">
+            {/* Template + Download */}
+            <div className="flex items-center gap-3">
+              <select
+                className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+                value={cardTemplate}
+                onChange={e => { setCardTemplate(e.target.value); setCardPreview('') }}
+              >
+                {[
+                  { id: 'full', label: 'Vollständig' },
+                  { id: 'security', label: 'Security-fokussiert' },
+                  { id: 'inventory', label: 'Inventar' },
+                  { id: 'network', label: 'Netzwerk' },
+                  { id: 'minimal', label: 'Minimal' },
+                ].map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <button
+                onClick={async () => {
+                  setCardLoading(true)
+                  try {
+                    const res = await fetch(`/api/v1/cards/assets/${id}`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ template_id: cardTemplate, format: 'markdown' }),
+                    })
+                    setCardPreview(await res.text())
+                  } finally { setCardLoading(false) }
+                }}
+                disabled={cardLoading}
+                className="flex items-center gap-1.5 text-sm bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 px-3 py-1.5 rounded"
+              >
+                <CreditCard size={13} /> {cardLoading ? 'Lade…' : 'Vorschau'}
+              </button>
+              {cardPreview && (
+                <a
+                  href={`/api/v1/cards/assets/${id}`}
+                  onClick={async e => {
+                    e.preventDefault()
+                    const res = await fetch(`/api/v1/cards/assets/${id}`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ template_id: cardTemplate, format: 'markdown' }),
+                    })
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url; a.download = `${asset.hostname || id}_card.md`; a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="flex items-center gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded"
+                >
+                  ↓ Download
+                </a>
+              )}
+            </div>
+
+            {/* Vorschau */}
+            {cardPreview && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 max-h-[600px] overflow-y-auto">
+                <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">{cardPreview}</pre>
+              </div>
+            )}
+            {!cardPreview && !cardLoading && (
+              <div className="text-gray-600 text-sm py-4">
+                Template auswählen → „Vorschau" klicken
+              </div>
+            )}
+          </div>
         </section>
       )}
 

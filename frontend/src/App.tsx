@@ -12,6 +12,7 @@ import ConflictQueue from './pages/ConflictQueue'
 import NetworkTopology from './pages/NetworkTopology'
 import Networks from './pages/Networks'
 import Reporting from './pages/Reporting'
+import CardExport from './pages/CardExport'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -43,6 +44,7 @@ export default function App() {
                   <Route path="/topology" element={<NetworkTopology />} />
                   <Route path="/networks" element={<Networks />} />
                   <Route path="/reporting" element={<Reporting />} />
+                  <Route path="/cards" element={<CardExport />} />
                 </Routes>
               </Layout>
             </RequireAuth>
