@@ -18,10 +18,11 @@ log = logging.getLogger(__name__)
 
 
 def ip_in_network(ip_str: str, cidr: str) -> bool:
-    """Prüft ob eine IP-Adresse in einem CIDR-Netz liegt."""
+    """Prüft ob eine IP-Adresse in einem CIDR-Netz liegt (inkl. /32 Einzelhost-Netze)."""
     try:
         ip  = ipaddress.ip_address(ip_str)
         net = ipaddress.ip_network(cidr, strict=False)
+        # ip in net: inklusiv, d.h. /32 matcht den exakten Host
         return ip in net
     except ValueError:
         return False
@@ -105,21 +106,51 @@ async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None
 
 async def reclassify_all(session: AsyncSession) -> int:
     """
-    Klassifiziert alle aktiven Assets neu.
+    Klassifiziert alle aktiven Assets neu via direktem SQL (zuverlässig).
     Nützlich nach dem Anlegen neuer Netze.
     """
-    result = await session.execute(
+    from sqlalchemy import text
+
+    # Netzwerke vorab laden für Logging
+    net_result = await session.execute(select(IpNetwork))
+    networks = net_result.scalars().all()
+    log.info("Reklassifizierung gestartet: %d Netze verfügbar", len(networks))
+
+    # Direktes SQL mit <<= (inklusiv, matcht auch /32)
+    update_sql = text("""
+        UPDATE assets
+        SET network_id = (
+            SELECT i.id FROM ip_networks i
+            WHERE assets.ip_address::inet <<= i.cidr::inet
+            ORDER BY masklen(i.cidr::inet) DESC
+            LIMIT 1
+        )
+        WHERE ip_address IS NOT NULL AND is_active = true
+    """)
+    result = await session.execute(update_sql)
+    updated = result.rowcount
+
+    # network_zones + asset_type auch per Python aktualisieren
+    asset_result = await session.execute(
         select(Asset).where(Asset.is_active == True, Asset.ip_address.is_not(None))
     )
-    assets = result.scalars().all()
-
-    count = 0
+    assets = asset_result.scalars().all()
     for asset in assets:
-        old_id = asset.network_id
-        await classify_asset_and_update(asset, session)
-        if asset.network_id != old_id:
-            count += 1
+        # Zonen aus IP ableiten
+        zones = set(asset.network_zones or [])
+        for net in networks:
+            if ip_in_network(asset.ip_address or "", net.cidr):
+                zones.add(net.name)
+        for extra in (getattr(asset, "additional_ips", None) or []):
+            for net in networks:
+                if ip_in_network(extra, net.cidr):
+                    zones.add(net.name)
+        if zones != set(asset.network_zones or []):
+            asset.network_zones = list(zones)
+        # Router-Auto-Erkennung
+        if len(zones) >= 2 and asset.asset_type not in ("router", "firewall"):
+            asset.asset_type = "router"
 
     await session.flush()
-    log.info("Reklassifizierung: %d/%d Assets aktualisiert", count, len(assets))
-    return count
+    log.info("Reklassifizierung: %d Assets network_id gesetzt", updated)
+    return updated
