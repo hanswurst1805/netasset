@@ -125,15 +125,39 @@ function APIKeySection() {
       </h2>
 
       {newKey && (
-        <div className="bg-green-950 border border-green-800 rounded-lg p-3 mb-3 text-sm">
-          <p className="text-green-400 font-medium mb-2">Key einmalig kopieren!</p>
-          <div className="flex items-center gap-2 font-mono text-xs bg-gray-900 rounded px-3 py-2">
-            <span className="flex-1 text-green-300 truncate">{newKey.raw_key}</span>
-            <button onClick={() => copy(newKey.raw_key)} className="text-gray-400 hover:text-white">
-              {copied ? <Check size={14} /> : <Copy size={14} />}
+        <div className="bg-green-950 border-2 border-green-600 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-green-400 font-bold text-sm">⚠ Jetzt kopieren — wird danach nicht mehr angezeigt!</span>
+          </div>
+          <div className="bg-gray-900 border border-green-700 rounded-lg p-3 mb-3">
+            <div className="text-xs text-gray-500 mb-1">Vollständiger API-Key:</div>
+            <div className="flex items-center gap-3">
+              <code className="flex-1 text-green-300 text-sm font-mono break-all select-all">
+                {newKey.raw_key}
+              </code>
+              <button
+                onClick={() => copy(newKey.raw_key)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  copied
+                    ? 'bg-green-600 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {copied ? <><Check size={14} /> Kopiert!</> : <><Copy size={14} /> Kopieren</>}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              Eintragen in: <code className="text-gray-400">netasset_collector.conf → api_key = ...</code>
+            </span>
+            <button
+              onClick={() => setNewKey(null)}
+              className="text-xs text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-700 rounded px-2 py-1 transition-colors"
+            >
+              Ich habe den Key kopiert — Schließen
             </button>
           </div>
-          <button onClick={() => setNewKey(null)} className="text-xs text-gray-500 mt-2">Schließen</button>
         </div>
       )}
 
