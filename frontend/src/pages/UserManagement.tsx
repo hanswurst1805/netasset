@@ -160,28 +160,66 @@ function APIKeySection() {
         <p className="text-xs text-red-400 mb-2">Fehler beim Laden: {(listError as Error).message}</p>
       )}
 
-      <div className="space-y-2">
-        {keys.map(k => (
-          <div key={k.id} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
-            <div>
-              <span className="text-sm font-medium">{k.name}</span>
-              <span className="text-xs text-gray-500 ml-2 font-mono">{k.key_prefix}…</span>
-              {k.last_used_at && (
-                <span className="text-xs text-gray-600 ml-2">
-                  zuletzt: {new Date(k.last_used_at).toLocaleDateString('de')}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => revoke.mutate(k.id)}
-              className="text-gray-600 hover:text-red-400 transition-colors"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-        {keys.length === 0 && <p className="text-xs text-gray-600">Keine API-Keys</p>}
-      </div>
+      {/* Key-Tabelle */}
+      {keys.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase">
+                <th className="text-left px-4 py-2">Name</th>
+                <th className="text-left px-4 py-2">Präfix</th>
+                <th className="text-left px-4 py-2">Tags</th>
+                <th className="text-left px-4 py-2">Zuletzt benutzt</th>
+                <th className="text-left px-4 py-2">Status</th>
+                <th className="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k: any) => (
+                <tr key={k.id} className="border-b border-gray-800 last:border-0">
+                  <td className="px-4 py-3 font-medium">{k.name}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-indigo-400">
+                    {k.key_prefix}…
+                  </td>
+                  <td className="px-4 py-3">
+                    {k.allowed_tags?.length > 0
+                      ? <div className="flex gap-1 flex-wrap">
+                          {k.allowed_tags.map((t: string) => (
+                            <span key={t} className="text-xs bg-indigo-900/50 text-indigo-400 border border-indigo-800 px-2 py-0.5 rounded">{t}</span>
+                          ))}
+                        </div>
+                      : <span className="text-xs text-gray-600">alle</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {k.last_used_at
+                      ? new Date(k.last_used_at).toLocaleString('de', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      : <span className="text-gray-700">nie</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded ${k.is_active ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-500'}`}>
+                      {k.is_active ? 'aktiv' : 'inaktiv'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => revoke.mutate(k.id)}
+                      className="text-gray-600 hover:text-red-400 transition-colors"
+                      title="Löschen"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {keys.length === 0 && !listError && (
+        <p className="text-xs text-gray-600 py-2">Keine API-Keys vorhanden</p>
+      )}
     </div>
   )
 }
