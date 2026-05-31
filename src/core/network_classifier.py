@@ -72,19 +72,18 @@ async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None
         if exp_rank.get(matched.exposure_level, 0) > exp_rank.get(asset.exposure_level, 0):
             asset.exposure_level = matched.exposure_level
         asset.network_zones = list(zones)
+        log.debug("Asset %s → Netz '%s' (%s)", asset.ip_address, matched.name, matched.cidr)
+    else:
+        # Kein Netz gefunden → veraltete network_id löschen
+        if asset.network_id:
+            asset.network_id = None
 
-    # Asset in 2+ Netzwerk-Zonen → automatisch Router
+    # Asset in 2+ Netzwerk-Zonen → automatisch Router (unabhängig vom Match)
     zone_count = len(asset.network_zones or [])
     if zone_count >= 2 and asset.asset_type not in ("router", "firewall"):
         log.info("Asset %s hat %d Zonen → asset_type=router",
                  asset.ip_address or asset.hostname, zone_count)
         asset.asset_type = "router"
-        log.info("Asset %s → Netz '%s' (%s)",
-                 asset.ip_address, matched.name, matched.cidr)
-    else:
-        if asset.network_id:
-            # Netz wurde gelöscht oder IP hat sich geändert
-            asset.network_id = None
 
 
 async def reclassify_all(session: AsyncSession) -> int:
