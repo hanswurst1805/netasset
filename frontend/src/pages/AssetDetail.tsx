@@ -75,6 +75,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
     location:       (asset as any).location ?? '',
     tags:           asset.tags ?? [],
     network_zones:  (asset as any).network_zones ?? [],
+    additional_ips: (asset as any).additional_ips ?? [],
     min_confidence: (asset as any).min_confidence ?? 0,
   })
   const [error, setError] = useState('')
@@ -115,6 +116,20 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
             {field('IP-Adresse', 'ip_address')}
             {field('FQDN', 'fqdn')}
             {field('MAC-Adresse', 'mac_address')}
+          </div>
+
+          <div>
+            <label className="block text-xs text-gray-400 mb-2">
+              Weitere IP-Adressen
+              <span className="text-gray-600 ml-2 font-normal">z.B. WAN-IP, Management-IP, zweites Interface</span>
+            </label>
+            <TagInput
+              tags={form.additional_ips}
+              onChange={ips => setForm({ ...form, additional_ips: ips })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             {field('OS Name', 'os_name')}
             {field('OS Version', 'os_version')}
             {field('Standort', 'location')}
@@ -310,7 +325,7 @@ export default function AssetDetail() {
         {[
           ['Typ',  asset.asset_type],
           ['OS',   `${asset.os_name ?? '—'} ${asset.os_version ?? ''}`],
-          ['IP',   asset.ip_address ?? '—'],
+          ['IP',   [asset.ip_address, ...((asset as any).additional_ips ?? [])].filter(Boolean).join(', ') || '—'],
           ['MAC',  asset.mac_address ?? '—'],
         ].map(([label, value]) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-lg p-4">

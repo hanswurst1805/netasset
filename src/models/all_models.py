@@ -146,6 +146,8 @@ class Asset(Base):
     # Soft-Identifikatoren (können sich ändern)
     hostname: Mapped[Optional[str]] = mapped_column(String(300), index=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(50), index=True)
+    additional_ips: Mapped[Optional[list]] = mapped_column(ARRAY(String(50)))
+    # Weitere IP-Adressen (z.B. WAN-IP, Management-IP, zweites Interface)
     fqdn: Mapped[Optional[str]] = mapped_column(String(500))
 
     # Gerättyp

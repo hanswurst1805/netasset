@@ -23,6 +23,7 @@ router = APIRouter()
 class AssetCreate(BaseModel):
     hostname: Optional[str] = None
     ip_address: Optional[str] = None
+    additional_ips: Optional[list[str]] = None
     fqdn: Optional[str] = None
     mac_address: Optional[str] = None
     serial_number: Optional[str] = None
@@ -59,6 +60,7 @@ class AssetOut(BaseModel):
     asset_type: str
     os_name: Optional[str]
     os_version: Optional[str]
+    additional_ips: Optional[list[str]] = None
     exposure_level: str
     network_zones: Optional[list[str]]
     open_ports: Optional[list]
