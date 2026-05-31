@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -68,7 +69,7 @@ class APIKeyOut(BaseModel):
     key_prefix: str
     allowed_tags: Optional[list[str]]
     is_active: bool
-    last_used_at: Optional[str]
+    last_used_at: Optional[datetime] = None
     model_config = {"from_attributes": True}
 
 class APIKeyCreated(APIKeyOut):
