@@ -47,8 +47,9 @@ function segColor(label: string) {
 // ---------------------------------------------------------------------------
 
 interface TopoNode {
-  id: string; label: string; exposure?: string; cidr?: string
+  id: string; type: string; label: string; exposure?: string; cidr?: string
   asset_count: number; connected: boolean
+  asset_id?: string; asset_type?: string; asset_ip?: string
 }
 interface TopoEdge {
   from_id: string; to_id: string; gateway_name: string
@@ -67,81 +68,146 @@ function TopologyDiagram({ topo }: { topo: Topology }) {
     )
   }
 
-  // Layout: zwei Reihen — oben verbundene, unten isolierte Segmente
-  const connected = topo.nodes.filter(n => n.connected)
-  const isolated  = topo.nodes.filter(n => !n.connected)
+  // Nodes nach Typ trennen
+  const segments = topo.nodes.filter(n => n.type === 'segment')
+  const routers  = topo.nodes.filter(n => n.type === 'router' || n.type === 'firewall')
+  const connectedSegs = segments.filter(n => n.connected)
+  const isolatedSegs  = segments.filter(n => !n.connected)
 
   const W = 900
-  const NODE_W = 150
-  const NODE_H = 70
-  const Y_TOP = 80
-  const Y_BOT = 220
+  const SEG_W = 150; const SEG_H = 70
+  const RTR_W = 140; const RTR_H = 50
+  const Y_SEG = 70        // Segmente oben
+  const Y_RTR = 190       // Router Mitte
+  const Y_ISO = 310       // Isolierte Segmente unten
 
   const nodePos: Record<string, { x: number; y: number }> = {}
 
-  // Verbundene Segmente: obere Zeile
-  const topSpacing = W / (connected.length + 1)
-  connected.forEach((n, i) => {
-    nodePos[n.id] = { x: topSpacing * (i + 1), y: Y_TOP }
-  })
+  const segSpacing = W / (connectedSegs.length + 1)
+  connectedSegs.forEach((n, i) => { nodePos[n.id] = { x: segSpacing * (i + 1), y: Y_SEG } })
 
-  // Isolierte Segmente: untere Zeile
-  const botSpacing = W / (isolated.length + 1)
-  isolated.forEach((n, i) => {
-    nodePos[n.id] = { x: botSpacing * (i + 1), y: Y_BOT }
-  })
+  const rtrSpacing = W / (routers.length + 1)
+  routers.forEach((n, i) => { nodePos[n.id] = { x: rtrSpacing * (i + 1), y: Y_RTR } })
 
-  const svgH = isolated.length > 0 ? 340 : 210
+  const isoSpacing = W / (isolatedSegs.length + 1)
+  isolatedSegs.forEach((n, i) => { nodePos[n.id] = { x: isoSpacing * (i + 1), y: Y_ISO } })
+
+  const svgH = isolatedSegs.length > 0 ? 400 : (routers.length > 0 ? 280 : 180)
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${svgH}`} style={{ fontFamily: 'system-ui, sans-serif' }}>
-      {/* Trennlinie zwischen Reihen */}
-      {isolated.length > 0 && (
+      {/* Trennlinien */}
+      {routers.length > 0 && (
+        <text x={10} y={Y_SEG - 12} fill="#4b5563" fontSize={9} fontWeight="600">SEGMENTE</text>
+      )}
+      {routers.length > 0 && (
+        <text x={10} y={Y_RTR - 12} fill="#f59e0b" fontSize={9} fontWeight="600">ROUTER / FIREWALLS</text>
+      )}
+      {isolatedSegs.length > 0 && (
         <>
-          <line x1={20} y1={Y_TOP + NODE_H/2 + 50} x2={W - 20} y2={Y_TOP + NODE_H/2 + 50}
-            stroke="#374151" strokeWidth={1} strokeDasharray="4,4" />
-          <text x={W/2} y={Y_TOP + NODE_H/2 + 45} textAnchor="middle"
-            fill="#4b5563" fontSize={9}>Isolierte Segmente (kein Gateway konfiguriert)</text>
+          <line x1={20} y1={Y_ISO - 18} x2={W-20} y2={Y_ISO - 18}
+            stroke="#374151" strokeWidth={1} strokeDasharray="4,4"/>
+          <text x={10} y={Y_ISO - 8} fill="#4b5563" fontSize={9}>ISOLIERT</text>
         </>
       )}
 
-      {/* Segment-Knoten */}
-      {topo.nodes.map(node => {
+      {/* Kanten HINTER den Nodes zeichnen */}
+      {topo.edges.map((edge, i) => {
+        const from = nodePos[edge.from_id]
+        const to   = nodePos[edge.to_id]
+        if (!from || !to) return null
+
+        const fromIsRouter = edge.from_id.startsWith('router-')
+        const toIsRouter   = edge.to_id.startsWith('router-')
+        const x1 = from.x
+        const y1 = from.y + (fromIsRouter ? RTR_H/2 : SEG_H/2)
+        const x2 = to.x
+        const y2 = to.y - (toIsRouter ? RTR_H/2 : 0) + (toIsRouter ? 0 : SEG_H/2)
+        const isHov = hovered === `edge-${i}`
+        const isPrimary = edge.is_primary
+
+        return (
+          <g key={i} onMouseEnter={() => setHovered(`edge-${i}`)} onMouseLeave={() => setHovered(null)}>
+            <line x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={isPrimary ? '#f59e0b' : '#4b5563'}
+              strokeWidth={isHov ? 3 : isPrimary ? 2.5 : 1.5}
+              strokeDasharray={isPrimary ? undefined : '5,3'}
+              markerEnd="url(#arrow)"
+            />
+            {isHov && (
+              <text x={(x1+x2)/2} y={(y1+y2)/2 - 6} textAnchor="middle"
+                fill="#9ca3af" fontSize={9}>
+                {edge.asset_hostname || edge.asset_ip || edge.gateway_name}
+              </text>
+            )}
+          </g>
+        )
+      })}
+
+      {/* Segment-Nodes */}
+      {[...connectedSegs, ...isolatedSegs].map(node => {
         const pos = nodePos[node.id]
         if (!pos) return null
         const col = segColor(node.label)
         const isHov = hovered === node.id
         return (
           <g key={node.id}
-            transform={`translate(${pos.x - NODE_W/2},${pos.y - NODE_H/2})`}
+            transform={`translate(${pos.x - SEG_W/2},${pos.y - SEG_H/2})`}
             onMouseEnter={() => setHovered(node.id)}
             onMouseLeave={() => setHovered(null)}
           >
-            <rect width={NODE_W} height={NODE_H} rx={8}
-              fill={col.bg}
-              stroke={isHov ? col.text : col.border}
-              strokeWidth={isHov ? 2 : node.connected ? 2 : 1}
+            <rect width={SEG_W} height={SEG_H} rx={8}
+              fill={col.bg} stroke={isHov ? col.text : col.border}
+              strokeWidth={node.connected ? 2 : 1}
               strokeDasharray={node.connected ? undefined : '4,3'}
-              opacity={node.connected ? 1 : 0.7}
-            />
-            {/* Name */}
-            <text x={NODE_W/2} y={22} textAnchor="middle"
-              fill={col.text} fontSize={12} fontWeight="700">
-              {node.label.length > 16 ? node.label.slice(0, 15) + '…' : node.label}
+              opacity={node.connected ? 1 : 0.7} />
+            <text x={SEG_W/2} y={20} textAnchor="middle" fill={col.text} fontSize={12} fontWeight="700">
+              {node.label.length > 16 ? node.label.slice(0,15)+'…' : node.label}
             </text>
-            {/* CIDR */}
             {node.cidr && (
-              <text x={NODE_W/2} y={37} textAnchor="middle"
-                fill={col.border} fontSize={9} opacity={0.8}>
+              <text x={SEG_W/2} y={34} textAnchor="middle" fill={col.border} fontSize={9} opacity={0.8}>
                 {node.cidr}
               </text>
             )}
-            {/* Asset-Count */}
-            <text x={NODE_W/2} y={node.cidr ? 52 : 42} textAnchor="middle"
-              fill="#6b7280" fontSize={9}>
-              {node.asset_count > 0
-                ? `${node.asset_count} Asset${node.asset_count !== 1 ? 's' : ''}`
-                : 'leer'}
+            <text x={SEG_W/2} y={node.cidr ? 50 : 40} textAnchor="middle" fill="#6b7280" fontSize={9}>
+              {node.asset_count > 0 ? `${node.asset_count} Assets` : 'leer'}
+            </text>
+          </g>
+        )
+      })}
+
+      {/* Router-Nodes (prominent, goldener Rahmen) */}
+      {routers.map(node => {
+        const pos = nodePos[node.id]
+        if (!pos) return null
+        const isFirewall = node.type === 'firewall'
+        const isHov = hovered === node.id
+        return (
+          <g key={node.id}
+            transform={`translate(${pos.x - RTR_W/2},${pos.y - RTR_H/2})`}
+            onMouseEnter={() => setHovered(node.id)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            {/* Äußerer Glow-Effekt */}
+            <rect width={RTR_W} height={RTR_H} rx={8}
+              fill="none"
+              stroke={isFirewall ? '#ef4444' : '#f59e0b'}
+              strokeWidth={isHov ? 4 : 3}
+              opacity={0.3}
+              transform="translate(-3,-3) scale(1.04,1.08)" />
+            <rect width={RTR_W} height={RTR_H} rx={8}
+              fill={isFirewall ? '#1f0a0a' : '#1a1200'}
+              stroke={isFirewall ? '#ef4444' : '#f59e0b'}
+              strokeWidth={isHov ? 3 : 2} />
+            {/* Icon-Text */}
+            <text x={16} y={28} fill={isFirewall ? '#ef4444' : '#f59e0b'} fontSize={16}>
+              {isFirewall ? '🛡' : '⇄'}
+            </text>
+            <text x={34} y={20} fill={isFirewall ? '#fca5a5' : '#fde68a'} fontSize={11} fontWeight="700">
+              {node.label.length > 14 ? node.label.slice(0,13)+'…' : node.label}
+            </text>
+            <text x={34} y={34} fill="#6b7280" fontSize={9}>
+              {node.asset_ip || node.asset_type}
             </text>
           </g>
         )
@@ -155,8 +221,8 @@ function TopologyDiagram({ topo }: { topo: Topology }) {
 
         const x1 = from.x
         const x2 = to.x
-        const y1 = from.y + NODE_H / 2
-        const y2 = to.y + NODE_H / 2
+        const y1 = from.y + SEG_H / 2
+        const y2 = to.y + SEG_H / 2
         const mx = (x1 + x2) / 2
         const drop = 40 + (i % 3) * 15
         const my = y1 + drop

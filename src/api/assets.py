@@ -145,8 +145,47 @@ async def update_asset(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(asset, field, value)
     await session.flush()
+
+    # Router mit 2+ Zonen → Gateways automatisch anlegen
+    await _ensure_gateways(asset, session)
+
     await session.refresh(asset)
     return asset
+
+
+async def _ensure_gateways(asset: Asset, session) -> None:
+    """Legt fehlende Gateways für Router-Assets automatisch an."""
+    from itertools import combinations
+    from src.models.all_models import NetworkGateway
+
+    if asset.asset_type not in ("router", "firewall"):
+        return
+    zones = list(set(asset.network_zones or []))
+    if len(zones) < 2:
+        return
+
+    existing = await session.execute(
+        select(NetworkGateway).where(NetworkGateway.asset_id == asset.id)
+    )
+    existing_pairs = {
+        (gw.from_segment, gw.to_segment)
+        for gw in existing.scalars().all()
+    }
+
+    label = asset.hostname or asset.ip_address or str(asset.id)
+    for z1, z2 in combinations(sorted(zones), 2):
+        if (z1, z2) in existing_pairs or (z2, z1) in existing_pairs:
+            continue
+        session.add(NetworkGateway(
+            asset_id=asset.id,
+            name=f"{label}",
+            from_segment=z1,
+            to_segment=z2,
+            is_primary=False,
+            description="Automatisch angelegt",
+        ))
+        existing_pairs.add((z1, z2))
+    await session.flush()
 
 
 @router.delete("/{asset_id}", status_code=204)

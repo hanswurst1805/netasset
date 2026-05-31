@@ -46,12 +46,15 @@ class GatewayOut(BaseModel):
 
 class TopologyNode(BaseModel):
     id: str
-    type: str         # "segment"
+    type: str         # "segment" | "router"
     label: str
     exposure: Optional[str] = None
     cidr: Optional[str] = None
     asset_count: int = 0
-    connected: bool = False  # hat mindestens eine Gateway-Verbindung
+    connected: bool = False
+    asset_id: Optional[str] = None    # für router-Nodes
+    asset_type: Optional[str] = None  # router | firewall
+    asset_ip: Optional[str] = None
 
 
 class TopologyEdge(BaseModel):
@@ -298,7 +301,7 @@ async def get_topology(
         explicit_pairs.add((gw.from_segment, gw.to_segment))
         explicit_pairs.add((gw.to_segment, gw.from_segment))
 
-    # 2. Router/Firewall-Assets mit 2+ Zonen → automatisch als Kanten
+    # 2. Router/Firewall-Assets mit 2+ Zonen → als eigene Nodes + Kanten
     from itertools import combinations as _comb
     GATEWAY_TYPES = {"router", "firewall"}
 
@@ -311,28 +314,46 @@ async def get_topology(
     )
     router_assets = router_result.scalars().all()
     segment_ids = {n.id for n in nodes}
+    router_nodes: list[TopologyNode] = []
 
     for asset in router_assets:
         zones = [z for z in (asset.network_zones or []) if f"seg-{z}" in segment_ids]
         if len(zones) < 2:
             continue
-        label = asset.hostname or asset.ip_address or str(asset.id)
-        for z1, z2 in _comb(sorted(set(zones)), 2):
-            if (z1, z2) in explicit_pairs or (z2, z1) in explicit_pairs:
-                continue  # bereits durch expliziten Gateway abgedeckt
-            edges.append(TopologyEdge(
-                from_id=f"seg-{z1}",
-                to_id=f"seg-{z2}",
-                gateway_name=label,
-                is_primary=False,
-                asset_hostname=asset.hostname,
-                asset_ip=asset.ip_address,
-            ))
-            # connected-Flag für beide Segmente setzen
-            connected_segs.add(z1)
-            connected_segs.add(z2)
 
-    # Nodes mit aktualisiertem connected-Flag neu bauen
+        label = asset.hostname or asset.ip_address or str(asset.id)
+        router_id = f"router-{asset.id}"
+
+        router_nodes.append(TopologyNode(
+            id=router_id,
+            type=asset.asset_type,  # "router" | "firewall"
+            label=label,
+            asset_id=str(asset.id),
+            asset_type=asset.asset_type,
+            asset_ip=asset.ip_address,
+        ))
+
+        # Kanten: Segment ↔ Router-Node
+        for zone in sorted(set(zones)):
+            # Prüfen ob nicht schon durch expliziten Gateway abgedeckt
+            explicit_for_zone = any(
+                (e.from_id == f"seg-{zone}" or e.to_id == f"seg-{zone}")
+                and (e.from_id == router_id or e.to_id == router_id or
+                     e.asset_hostname == asset.hostname or e.asset_ip == asset.ip_address)
+                for e in edges
+            )
+            if not explicit_for_zone:
+                edges.append(TopologyEdge(
+                    from_id=f"seg-{zone}",
+                    to_id=router_id,
+                    gateway_name=label,
+                    is_primary=False,
+                    asset_hostname=asset.hostname,
+                    asset_ip=asset.ip_address,
+                ))
+            connected_segs.add(zone)
+
+    # Segment-Nodes mit aktualisiertem connected-Flag neu bauen
     nodes = [
         TopologyNode(
             id=f"seg-{name}",
@@ -344,6 +365,6 @@ async def get_topology(
             connected=name in connected_segs,
         )
         for name, info in sorted(segments.items())
-    ]
+    ] + router_nodes  # Router-Nodes anhängen
 
     return TopologyDiagram(nodes=nodes, edges=edges)
