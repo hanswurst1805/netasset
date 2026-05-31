@@ -41,6 +41,8 @@ class AssetCreate(BaseModel):
     rack_unit: Optional[int] = None
     location: Optional[str] = None
     tags: Optional[list[str]] = None
+    min_confidence: Optional[float] = None
+    # 0.0 = alles akzeptieren | 0.95 = nur Stable Keys | 1.0 = nur UUID
 
 
 class AssetUpdate(AssetCreate):
@@ -63,6 +65,7 @@ class AssetOut(BaseModel):
     location: Optional[str]
     tags: Optional[list[str]]
     is_active: bool
+    min_confidence: Optional[float] = None
     last_seen_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 

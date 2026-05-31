@@ -43,7 +43,7 @@ class IngestResult(BaseModel):
     asset_id: Optional[str]
     confidence: float
     matched_on: list[str]
-    action: str  # created | merged | queued
+    action: str  # created | merged | queued | skipped
 
 
 @router.post("/ingest", response_model=list[IngestResult])
@@ -80,10 +80,16 @@ async def ingest_devices(
         action = "queued"
 
         if identity.result == MatchResult.MATCH and identity.asset_id:
-            merge_data = device.model_dump(exclude={"internal_id", "source"}, exclude_none=True)
-            merge_data["source"] = device.source
-            await resolver.merge_data(identity.asset_id, merge_data)
-            action = "merged"
+            # Konfidenz-Check: Asset kann Mindest-Konfidenz setzen
+            existing = await session.get(Asset, identity.asset_id)
+            min_conf = getattr(existing, "min_confidence", 0.0) or 0.0
+            if identity.confidence < min_conf:
+                action = "skipped"  # Konfidenz zu niedrig → ignorieren
+            else:
+                merge_data = device.model_dump(exclude={"internal_id", "source"}, exclude_none=True)
+                merge_data["source"] = device.source
+                await resolver.merge_data(identity.asset_id, merge_data)
+                action = "merged"
 
         elif identity.result == MatchResult.NEW:
             asset_data = device.model_dump(

@@ -191,6 +191,10 @@ class Asset(Base):
     sources: Mapped[Optional[dict]] = mapped_column(JSONB, default=list)
     # [{"origin": "snmp-discovery", "last_seen": "2026-05-29T10:00:00Z"}]
 
+    # Mindest-Konfidenz für automatische Merges (0.0 = alles, 1.0 = nur UUID-Match)
+    min_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    # Referenz: 0.95 = Stable Key, 0.80 = 2 Soft Keys, 0.40 = 1 Soft Key
+
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
