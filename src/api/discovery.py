@@ -107,18 +107,29 @@ async def ingest_devices(
             action = "created"
 
         elif identity.result == MatchResult.CONFLICT:
-            # → Conflict Queue: Operator entscheidet
-            entry = ConflictQueueEntry(
-                incoming_data=device.model_dump(),
-                source=device.source,
-                confidence=identity.confidence,
-                matched_on=identity.matched_on,
-                candidate_asset_id=identity.asset_id,
-                status="pending",
-            )
-            session.add(entry)
-            await session.flush()
-            action = "queued"
+            # min_confidence des Kandidaten prüfen
+            skip = False
+            if identity.asset_id:
+                candidate = await session.get(Asset, identity.asset_id)
+                min_conf = getattr(candidate, "min_confidence", 0.0) or 0.0
+                if identity.confidence < min_conf:
+                    skip = True
+
+            if skip:
+                action = "skipped"  # Konfidenz unter Schwelle → ignorieren
+            else:
+                # → Conflict Queue: Operator entscheidet
+                entry = ConflictQueueEntry(
+                    incoming_data=device.model_dump(),
+                    source=device.source,
+                    confidence=identity.confidence,
+                    matched_on=identity.matched_on,
+                    candidate_asset_id=identity.asset_id,
+                    status="pending",
+                )
+                session.add(entry)
+                await session.flush()
+                action = "queued"
 
         results.append(
             IngestResult(
