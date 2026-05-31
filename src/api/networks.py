@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
-from sqlalchemy import select, func
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
@@ -63,8 +63,15 @@ async def list_networks(
 
     out = []
     for net in networks:
+        # Assets in diesem Netz = primäre IP (network_id) ODER in network_zones
         count_result = await session.execute(
-            select(func.count()).where(Asset.network_id == net.id, Asset.is_active == True)
+            select(func.count()).where(
+                Asset.is_active == True,
+                or_(
+                    Asset.network_id == net.id,
+                    Asset.network_zones.contains([net.name]),
+                )
+            )
         )
         out.append(NetworkOut(
             id=net.id,
@@ -185,8 +192,13 @@ async def network_assets(
         raise HTTPException(404, "Netzwerk nicht gefunden")
 
     result = await session.execute(
-        select(Asset).where(Asset.network_id == network_id, Asset.is_active == True)
-        .order_by(Asset.ip_address)
+        select(Asset).where(
+            Asset.is_active == True,
+            or_(
+                Asset.network_id == network_id,
+                Asset.network_zones.contains([net.name]),
+            )
+        ).order_by(Asset.ip_address)
     )
     assets = result.scalars().all()
     return [
