@@ -126,10 +126,16 @@ class AssetCardData:
 async def load_asset_data(asset_id: str, session: AsyncSession) -> Optional[AssetCardData]:
     """Lädt alle relevanten Daten für eine Karteikarte."""
     import uuid
-    asset = await session.get(
-        Asset, uuid.UUID(asset_id),
-        options=[selectinload(Asset.sbom_entries), selectinload(Asset.cve_impacts)]
+    # Explizit per SELECT — session.get() gibt ggf. gecachtes Objekt ohne Relationships zurück
+    result = await session.execute(
+        select(Asset)
+        .where(Asset.id == uuid.UUID(asset_id))
+        .options(
+            selectinload(Asset.sbom_entries),
+            selectinload(Asset.cve_impacts),
+        )
     )
+    asset = result.scalar_one_or_none()
     if not asset:
         return None
 
