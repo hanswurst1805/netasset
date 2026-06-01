@@ -64,6 +64,9 @@ function NetworkRow({ net }: { net: Network }) {
         </div>
 
         {/* Exposure */}
+        {(net as any).gateway_hostname && (
+          <span className="text-xs text-yellow-500 font-mono hidden sm:inline">⇄ {(net as any).gateway_hostname}</span>
+        )}
         <span className={`text-xs px-2 py-0.5 rounded border font-medium ${expCls}`}>
           {net.exposure_level}
         </span>
@@ -119,17 +122,34 @@ function NetworkRow({ net }: { net: Network }) {
   )
 }
 
+async function fetchRouters() {
+  const t = localStorage.getItem('token') ?? ''
+  const types = ['router', 'firewall']
+  const all = await Promise.all(types.map(type =>
+    fetch(`/api/v1/assets?asset_type=${type}&limit=100`, {
+      headers: { Authorization: `Bearer ${t}` },
+    }).then(r => r.json())
+  ))
+  return all.flat()
+}
+
 function NewNetworkForm({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
+  const { data: routers = [] } = useQuery({ queryKey: ['router-assets'], queryFn: fetchRouters })
   const [form, setForm] = useState({
     name: '', cidr: '', description: '', exposure_level: 'INTERN', color: '#3b82f6',
+    gateway_asset_id: '',
   })
   const [error, setError] = useState('')
 
   const create = useMutation({
     mutationFn: () => apiFetch('', {
       method: 'POST',
-      body: JSON.stringify({ ...form, description: form.description || null }),
+      body: JSON.stringify({
+        ...form,
+        description: form.description || null,
+        gateway_asset_id: form.gateway_asset_id || null,
+      }),
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['networks'] }); onClose() },
     onError: (e: Error) => setError(e.message),
@@ -172,6 +192,21 @@ function NewNetworkForm({ onClose }: { onClose: () => void }) {
                 style={{ background: c, borderColor: form.color === c ? 'white' : 'transparent' }} />
             ))}
           </div>
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-400 mb-1">
+            Gateway-Router (optional)
+            <span className="text-gray-600 ml-2 font-normal">Router der dieses Netz nach oben verbindet</span>
+          </label>
+          <select className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+            value={form.gateway_asset_id} onChange={e => setForm({ ...form, gateway_asset_id: e.target.value })}>
+            <option value="">— kein Gateway —</option>
+            {routers.map((r: any) => (
+              <option key={r.id} value={r.id}>
+                {r.hostname || r.ip_address} ({r.asset_type})
+              </option>
+            ))}
+          </select>
         </div>
         <div className="col-span-2">
           <label className="block text-xs text-gray-400 mb-1">Beschreibung (optional)</label>

@@ -221,18 +221,14 @@ async def get_topology(
     _: AuthContext = Depends(get_current_user),
 ):
     """
-    Hierarchische Netzwerk-Topologie.
-    Level 0 = extern, höhere Level = interner.
-    Router sitzen zwischen den Segmenten die sie verbinden.
+    Baumstruktur-Topologie: INTERNET → Router → Netz → Router → Netz ...
+    Jedes Netz kennt seinen Gateway-Router (gateway_asset_id).
+    Router stehen zwischen den Netzen die sie verbinden.
     """
-    from collections import defaultdict, deque
-    from itertools import combinations as _comb
     from src.models.all_models import IpNetwork
 
     # ── Daten laden ──────────────────────────────────────────────────────────
-    gw_result   = await session.execute(select(NetworkGateway))
-    gateways    = gw_result.scalars().all()
-    net_result  = await session.execute(select(IpNetwork).order_by(IpNetwork.name))
+    net_result = await session.execute(select(IpNetwork).order_by(IpNetwork.name))
     ip_networks = net_result.scalars().all()
 
     GATEWAY_TYPES = {"router", "firewall"}
@@ -244,153 +240,191 @@ async def get_topology(
         )
     )
     router_assets = router_result.scalars().all()
+    router_by_id = {str(a.id): a for a in router_assets}
 
-    # ── Segmente sammeln ──────────────────────────────────────────────────────
-    EXPOSURE_BASE = {"EXTERN": 0, "DMZ": 2, "INTERN": 4}
-    segments: dict[str, dict] = {}
-    for net in ip_networks:
-        segments[net.name] = {"exposure": net.exposure_level, "cidr": net.cidr}
-    for gw in gateways:
-        for seg in (gw.from_segment, gw.to_segment):
-            if seg not in segments:
-                segments[seg] = {"exposure": seg if seg in EXPOSURE_BASE else None, "cidr": None}
-    if not segments:
-        for s in ("EXTERN", "INTERN"):
-            segments[s] = {"exposure": s, "cidr": None}
-
-    # Asset-Counts
+    # Asset-Counts pro Netz
     asset_counts: dict[str, int] = {}
     for net in ip_networks:
+        from sqlalchemy import or_
         c = (await session.execute(
-            select(func.count()).where(Asset.network_id == net.id, Asset.is_active == True)
+            select(func.count()).where(
+                Asset.is_active == True,
+                or_(Asset.network_id == net.id, Asset.network_zones.contains([net.name]))
+            )
         )).scalar() or 0
         asset_counts[net.name] = c
 
-    # ── Graph aufbauen (nur Segmentnamen, Routers kommen später) ─────────────
-    # Kanten zwischen Segmenten: aus Gateways + Router-Zonen
-    seg_edges: list[tuple[str, str, str, bool, str | None, str | None]] = []
-    # (seg_a, seg_b, label, is_primary, hostname, ip)
+    # ── Baumstruktur aufbauen ─────────────────────────────────────────────────
+    # Idee: jedes Netz kennt seinen gateway_asset_id (den Router nach oben)
+    # Wir traversieren: INTERNET → Router → Netz → Router → Netz → ...
+    # Level: INTERNET=0, Router=1, Netz=2, Router=3, Netz=4, ...
 
-    for gw in gateways:
-        a_asset = await session.get(Asset, gw.asset_id)
-        seg_edges.append((
-            gw.from_segment, gw.to_segment,
-            gw.name, gw.is_primary,
-            a_asset.hostname if a_asset else None,
-            a_asset.ip_address if a_asset else None,
-        ))
-
-    for asset in router_assets:
-        zones = [z for z in (asset.network_zones or []) if z in segments]
-        if len(zones) < 2:
-            continue
-        label = asset.hostname or asset.ip_address or str(asset.id)
-        for z1, z2 in _comb(sorted(set(zones)), 2):
-            seg_edges.append((z1, z2, label, False, asset.hostname, asset.ip_address))
-
-    # ── Level per BFS berechnen ──────────────────────────────────────────────
-    # Start: EXTERN-Segmente → Level 0, dann BFS über Segment-Edges
-    seg_level: dict[str, int] = {}
-
-    # Initiale Level aus Exposure
-    for name, info in segments.items():
-        exp = info.get("exposure") or ""
-        seg_level[name] = EXPOSURE_BASE.get(exp, 6)
-
-    # BFS: Level propagieren (verbundenes Segment = max(bekannt, Nachbar+2))
-    adjacency: dict[str, set[str]] = defaultdict(set)
-    for a, b, *_ in seg_edges:
-        adjacency[a].add(b)
-        adjacency[b].add(a)
-
-    # Normalisieren: kleinster Level = 0
-    if seg_level:
-        min_l = min(seg_level.values())
-        seg_level = {k: v - min_l for k, v in seg_level.items()}
-
-    # ── Router-Nodes erstellen mit Level zwischen ihren Segmenten ────────────
-    router_by_asset: dict[str, TopologyNode] = {}
     all_nodes: list[TopologyNode] = []
     all_edges: list[TopologyEdge] = []
-
-    # Segmente als Nodes
-    connected_segs: set[str] = set()
-    for a, b, *_ in seg_edges:
-        connected_segs.add(a)
-        connected_segs.add(b)
-
-    for name, info in segments.items():
-        all_nodes.append(TopologyNode(
-            id=f"seg-{name}",
-            type="segment",
-            label=name,
-            exposure=info.get("exposure"),
-            cidr=info.get("cidr"),
-            asset_count=asset_counts.get(name, 0),
-            connected=name in connected_segs,
-            level=seg_level.get(name, 4),
-        ))
-
-    # Router als Nodes: Level = Durchschnitt der verbundenen Segment-Level
     seen_routers: set[str] = set()
 
-    for asset in router_assets:
-        zones = [z for z in (asset.network_zones or []) if z in segments]
-        if len(zones) < 2:
-            continue
+    # INTERNET-Pseudo-Node immer oben
+    all_nodes.append(TopologyNode(
+        id="seg-INTERNET", type="segment", label="INTERNET",
+        exposure="EXTERN", level=0, connected=True, asset_count=0,
+    ))
 
-        router_id = f"router-{asset.id}"
-        if router_id in seen_routers:
-            continue
-        seen_routers.add(router_id)
+    # ── Externe Netze (EXTERN) an INTERNET hängen ─────────────────────────────
+    # Router der externe Netze verbindet → sitzt auf Level 1
+    # Externe Netze selbst → Level 0 (direkt am INTERNET)
 
-        zone_levels = [seg_level.get(z, 4) for z in zones]
-        # Router sitzt zwischen min und max Level seiner Zonen
-        router_level = (min(zone_levels) + max(zone_levels)) // 2 + 1
-
-        label = asset.hostname or asset.ip_address or str(asset.id)
-        all_nodes.append(TopologyNode(
-            id=router_id,
-            type=asset.asset_type,
-            label=label,
-            asset_id=str(asset.id),
-            asset_type=asset.asset_type,
-            asset_ip=asset.ip_address,
-            connected=True,
-            level=router_level,
-        ))
-        router_by_asset[str(asset.id)] = all_nodes[-1]
-
-        # Kanten: Router ↔ jede seiner Zonen
-        for zone in sorted(set(zones)):
-            zone_lv = seg_level.get(zone, 4)
-            # Richtung: von externalem Segment zu internem
-            if zone_lv <= router_level:
-                all_edges.append(TopologyEdge(
-                    from_id=f"seg-{zone}", to_id=router_id,
-                    gateway_name=label, is_primary=False,
-                    asset_hostname=asset.hostname, asset_ip=asset.ip_address,
-                ))
-            else:
-                all_edges.append(TopologyEdge(
-                    from_id=router_id, to_id=f"seg-{zone}",
-                    gateway_name=label, is_primary=False,
-                    asset_hostname=asset.hostname, asset_ip=asset.ip_address,
-                ))
-
-    # Explizite Gateways als Edges ergänzen (primär-Flag)
-    for gw in gateways:
-        a_asset = await session.get(Asset, gw.asset_id)
-        router_id = f"router-{gw.asset_id}"
-        from_id = f"seg-{gw.from_segment}" if f"seg-{gw.from_segment}" in {n.id for n in all_nodes} else router_id
-        to_id   = f"seg-{gw.to_segment}"   if f"seg-{gw.to_segment}"   in {n.id for n in all_nodes} else router_id
-        # Primäre Gateways als separate Kante mit is_primary=True markieren
-        if gw.is_primary:
+    for net in ip_networks:
+        net_id = f"seg-{net.name}"
+        if net.exposure_level == "EXTERN":
+            # Externe Netze auf Level 0 (neben INTERNET)
+            all_nodes.append(TopologyNode(
+                id=net_id, type="segment", label=net.name,
+                exposure="EXTERN", cidr=net.cidr,
+                asset_count=asset_counts.get(net.name, 0),
+                connected=True, level=0,
+            ))
             all_edges.append(TopologyEdge(
-                from_id=from_id, to_id=to_id,
-                gateway_name=gw.name, is_primary=True,
-                asset_hostname=a_asset.hostname if a_asset else None,
-                asset_ip=a_asset.ip_address if a_asset else None,
+                from_id="seg-INTERNET", to_id=net_id,
+                gateway_name="Internet", is_primary=True,
+            ))
+
+    # ── Router traversieren: Router → verbundene Netze → Router → ... ─────────
+    # Wir bauen den Baum per BFS-ähnlichem Traversal
+
+    # Netz → sein Gateway-Router (aus gateway_asset_id oder network_zones)
+    net_to_gateway: dict[str, str] = {}
+    for net in ip_networks:
+        if net.gateway_asset_id:
+            net_to_gateway[net.name] = str(net.gateway_asset_id)
+
+    # Router → welche Netze er bedient (downstream)
+    router_to_nets: dict[str, list[str]] = {}
+    for asset in router_assets:
+        zones = asset.network_zones or []
+        downstream = []
+        for net in ip_networks:
+            # Ein Netz ist downstream wenn dieser Router sein gateway ist
+            if str(net.gateway_asset_id) == str(asset.id):
+                downstream.append(net.name)
+            # Oder: Router ist in diesem Netz UND nicht das externe Netz
+            elif net.name in zones and net.exposure_level != "EXTERN":
+                # Nur wenn kein expliziter gateway gesetzt
+                if net.name not in net_to_gateway:
+                    downstream.append(net.name)
+        if downstream:
+            router_to_nets[str(asset.id)] = list(set(downstream))
+
+    # BFS: Starte bei Routern die EXTERN-Zonen haben (direkt am Internet)
+    from collections import deque
+    queue: deque = deque()
+    placed_nets: set[str] = set()
+    placed_routers: set[str] = set()
+
+    # Extern-Netze sind schon platziert
+    for net in ip_networks:
+        if net.exposure_level == "EXTERN":
+            placed_nets.add(net.name)
+
+    # Finde Router die ein EXTERN-Netz in ihren Zonen haben → Level 1
+    for asset in router_assets:
+        zones = asset.network_zones or []
+        has_extern = any(
+            net.name in zones and net.exposure_level == "EXTERN"
+            for net in ip_networks
+        ) or any(z == "EXTERN" for z in zones)
+        if has_extern and str(asset.id) not in placed_routers:
+            queue.append((asset, 1))  # (asset, level)
+            placed_routers.add(str(asset.id))
+
+    # Auch Router ohne explizite EXTERN-Zone aber mit gateway_asset_id=None für EXTERN-Netze
+    for asset in router_assets:
+        aid = str(asset.id)
+        if aid not in placed_routers:
+            # Hat Router eine IP in einem EXTERN-Netz?
+            for net in ip_networks:
+                if net.exposure_level == "EXTERN" and net.gateway_asset_id == asset.id:
+                    queue.append((asset, 1))
+                    placed_routers.add(aid)
+                    break
+
+    visited_levels: dict[str, int] = {}
+
+    while queue:
+        asset, level = queue.popleft()
+        aid = str(asset.id)
+        router_id = f"router-{aid}"
+        label = asset.hostname or asset.ip_address or str(aid)
+
+        # Router-Node anlegen
+        if router_id not in {n.id for n in all_nodes}:
+            all_nodes.append(TopologyNode(
+                id=router_id, type=asset.asset_type,
+                label=label, asset_id=aid,
+                asset_type=asset.asset_type, asset_ip=asset.ip_address,
+                connected=True, level=level,
+            ))
+
+        # Kante vom übergeordneten Netz zu diesem Router
+        # Übergeordnetes Netz = das EXTERN/externe Netz in den Zonen
+        for zone in (asset.network_zones or []):
+            zone_node_id = f"seg-{zone}"
+            if zone_node_id in {n.id for n in all_nodes}:
+                node_level = next((n.level for n in all_nodes if n.id == zone_node_id), 0)
+                if node_level < level:
+                    edge_exists = any(
+                        e.from_id == zone_node_id and e.to_id == router_id
+                        for e in all_edges
+                    )
+                    if not edge_exists:
+                        all_edges.append(TopologyEdge(
+                            from_id=zone_node_id, to_id=router_id,
+                            gateway_name=label, is_primary=False,
+                            asset_hostname=asset.hostname, asset_ip=asset.ip_address,
+                        ))
+
+        # Downstream-Netze dieses Routers anlegen
+        downstream = router_to_nets.get(aid, [])
+        for net_name in downstream:
+            if net_name in placed_nets:
+                continue
+            placed_nets.add(net_name)
+            net_id = f"seg-{net_name}"
+            net_obj = next((n for n in ip_networks if n.name == net_name), None)
+            net_lv = level + 1
+
+            if net_id not in {n.id for n in all_nodes}:
+                all_nodes.append(TopologyNode(
+                    id=net_id, type="segment", label=net_name,
+                    exposure=net_obj.exposure_level if net_obj else None,
+                    cidr=net_obj.cidr if net_obj else None,
+                    asset_count=asset_counts.get(net_name, 0),
+                    connected=True, level=net_lv,
+                ))
+            all_edges.append(TopologyEdge(
+                from_id=router_id, to_id=net_id,
+                gateway_name=label, is_primary=False,
+                asset_hostname=asset.hostname, asset_ip=asset.ip_address,
+            ))
+
+            # Gibt es einen Router der dieses Netz weiterverbindet?
+            for next_asset in router_assets:
+                next_aid = str(next_asset.id)
+                if next_aid in placed_routers:
+                    continue
+                if net_name in (next_asset.network_zones or []):
+                    # Dieser Router ist in diesem Netz
+                    placed_routers.add(next_aid)
+                    queue.append((next_asset, net_lv + 1))
+
+    # ── Nicht verbundene Netze am Ende hinzufügen ─────────────────────────────
+    for net in ip_networks:
+        net_id = f"seg-{net.name}"
+        if net_id not in {n.id for n in all_nodes}:
+            all_nodes.append(TopologyNode(
+                id=net_id, type="segment", label=net.name,
+                exposure=net.exposure_level, cidr=net.cidr,
+                asset_count=asset_counts.get(net.name, 0),
+                connected=False, level=8,
             ))
 
     return TopologyDiagram(nodes=all_nodes, edges=all_edges)

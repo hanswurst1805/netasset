@@ -292,6 +292,10 @@ class IpNetwork(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     exposure_level: Mapped[str] = mapped_column(String(20), default="INTERN")
     color: Mapped[Optional[str]] = mapped_column(String(20))  # Farbe für UI
+    # Optionaler Router/Firewall der dieses Netz nach oben verbindet
+    gateway_asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     assets: Mapped[list["Asset"]] = relationship(back_populates="network")

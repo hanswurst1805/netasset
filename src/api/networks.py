@@ -26,6 +26,7 @@ class NetworkCreate(BaseModel):
     description: Optional[str] = None
     exposure_level: str = "INTERN"
     color: Optional[str] = None
+    gateway_asset_id: Optional[uuid.UUID] = None  # Router der dieses Netz nach oben verbindet
 
     @field_validator("cidr")
     @classmethod
@@ -44,6 +45,8 @@ class NetworkOut(BaseModel):
     description: Optional[str]
     exposure_level: str
     color: Optional[str]
+    gateway_asset_id: Optional[uuid.UUID] = None
+    gateway_hostname: Optional[str] = None  # für Anzeige
     asset_count: int = 0
     model_config = {"from_attributes": True}
 
@@ -63,7 +66,6 @@ async def list_networks(
 
     out = []
     for net in networks:
-        # Assets in diesem Netz = primäre IP (network_id) ODER in network_zones
         count_result = await session.execute(
             select(func.count()).where(
                 Asset.is_active == True,
@@ -73,13 +75,15 @@ async def list_networks(
                 )
             )
         )
+        gw_hostname = None
+        if net.gateway_asset_id:
+            gw = await session.get(Asset, net.gateway_asset_id)
+            gw_hostname = gw.hostname or gw.ip_address if gw else None
         out.append(NetworkOut(
-            id=net.id,
-            name=net.name,
-            cidr=net.cidr,
-            description=net.description,
-            exposure_level=net.exposure_level,
-            color=net.color,
+            id=net.id, name=net.name, cidr=net.cidr,
+            description=net.description, exposure_level=net.exposure_level,
+            color=net.color, gateway_asset_id=net.gateway_asset_id,
+            gateway_hostname=gw_hostname,
             asset_count=count_result.scalar() or 0,
         ))
     return out
@@ -98,9 +102,19 @@ async def create_network(
     if existing:
         raise HTTPException(400, f"Netz {body.cidr} existiert bereits: '{existing.name}'")
 
-    net = IpNetwork(**body.model_dump())
+    net = IpNetwork(**body.model_dump(exclude_none=True))
     session.add(net)
     await session.flush()
+
+    # Gateway-Router: dessen network_zones um dieses Netz ergänzen
+    if body.gateway_asset_id:
+        gw_asset = await session.get(Asset, body.gateway_asset_id)
+        if gw_asset:
+            zones = set(gw_asset.network_zones or [])
+            zones.add(net.name)
+            gw_asset.network_zones = list(zones)
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(gw_asset, "network_zones")
 
     # Bestehende Assets sofort zuordnen
     assets_result = await session.execute(
