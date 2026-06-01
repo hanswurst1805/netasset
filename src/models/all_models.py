@@ -212,7 +212,10 @@ class Asset(Base):
     cve_impacts: Mapped[list["CVEImpact"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     port_scans: Mapped[list["PortScan"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
     gateways: Mapped[list["NetworkGateway"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
-    network: Mapped[Optional["IpNetwork"]] = relationship(back_populates="assets")
+    network: Mapped[Optional["IpNetwork"]] = relationship(
+        back_populates="assets",
+        foreign_keys="[Asset.network_id]",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +301,10 @@ class IpNetwork(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    assets: Mapped[list["Asset"]] = relationship(back_populates="network")
+    assets: Mapped[list["Asset"]] = relationship(
+        back_populates="network",
+        foreign_keys="[Asset.network_id]",
+    )
 
 
 # ---------------------------------------------------------------------------
