@@ -43,9 +43,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="NetAsset API",
-    description="CMDB & Security Intelligence Platform",
-    version="0.1.0",
+    title="DRUCKER API",
+    description="Infrastructure Intelligence Platform",
+    version="1.0.0",
     lifespan=lifespan,
 )
 

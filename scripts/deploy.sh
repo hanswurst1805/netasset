@@ -71,7 +71,7 @@ cmd_start() {
         --restart unless-stopped \
         -e "DOMAIN=${DOMAIN}" \
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
-        -v "$INSTALL_DIR/frontend/dist:/srv/frontend:ro" \
+        -v "$INSTALL_DIR/dashboard/dist:/srv/dashboard:ro" \
         -v netasset-caddy-data:/data \
         -v netasset-caddy-config:/config \
         docker.io/caddy:2-alpine
@@ -105,7 +105,7 @@ _start_api() {
 _build_frontend() {
     if command -v npm &>/dev/null; then
         echo "==> Frontend bauen (npm)..."
-        cd "$INSTALL_DIR/frontend" && npm ci --silent && npm run build
+        cd "$INSTALL_DIR/dashboard" && npm ci --silent && npm run build
         cd "$INSTALL_DIR"
     else
         echo "    (npm nicht installiert – Frontend-Build übersprungen)"

@@ -31,8 +31,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-4">
             <ShieldAlert size={28} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-100">NetAsset</h1>
-          <p className="text-gray-500 text-sm mt-1">CMDB & Security Intelligence</p>
+          <h1 className="text-3xl font-black tracking-tight text-white">DRUCKER</h1>
+          <p className="text-gray-500 text-sm mt-1">Infrastructure Intelligence</p>
         </div>
 
         <form onSubmit={submit} className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">

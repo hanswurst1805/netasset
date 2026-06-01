@@ -34,8 +34,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className="w-56 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
         <div className="px-4 py-5 border-b border-gray-800">
-          <span className="text-lg font-bold text-indigo-400">NetAsset</span>
-          <p className="text-xs text-gray-500 mt-0.5">CMDB & Security</p>
+          <span className="text-xl font-black tracking-tight text-white">DRUCKER</span>
+          <p className="text-xs text-gray-500 mt-0.5">Infrastructure Intelligence</p>
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {nav.map(({ to, icon: Icon, label }) => (

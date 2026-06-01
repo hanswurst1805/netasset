@@ -14,7 +14,7 @@
 
     # Alles andere: React SPA aus dem dist-Verzeichnis
     handle {
-        root * /srv/frontend
+        root * /srv/dashboard
         try_files {path} /index.html
         file_server
     }
