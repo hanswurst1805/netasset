@@ -152,7 +152,10 @@ export default function TopologyDiagram({ topo }: { topo: Topology }) {
       {topo.nodes.filter(n => n.type === 'segment').map(node => {
         const pos = nodePos[node.id]
         if (!pos) return null
-        const col = segColor(node.exposure)
+        const isInternet = node.id === 'seg-INTERNET'
+        const col = isInternet
+          ? { bg: '#0a0a1a', border: '#6366f1', text: '#a5b4fc' }
+          : segColor(node.exposure)
         const isHov = hovered === node.id
         return (
           <g key={node.id}
@@ -165,8 +168,11 @@ export default function TopologyDiagram({ topo }: { topo: Topology }) {
               strokeWidth={node.connected ? 2 : 1}
               strokeDasharray={node.connected ? undefined : '4,3'}
               opacity={node.connected ? 1 : 0.65} />
-            <text x={SEG_W/2} y={22} textAnchor="middle"
-              fill={col.text} fontSize={12} fontWeight="700">
+            {isInternet && (
+              <text x={SEG_W/2 - 32} y={26} fontSize={18} textAnchor="middle">🌐</text>
+            )}
+            <text x={isInternet ? SEG_W/2 + 10 : SEG_W/2} y={22} textAnchor="middle"
+              fill={col.text} fontSize={isInternet ? 14 : 12} fontWeight="700">
               {node.label.length > 16 ? node.label.slice(0,15)+'…' : node.label}
             </text>
             {node.cidr && (

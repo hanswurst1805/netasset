@@ -257,31 +257,28 @@ async def get_topology(
     # ── Baumstruktur aufbauen ─────────────────────────────────────────────────
     # Idee: jedes Netz kennt seinen gateway_asset_id (den Router nach oben)
     # Wir traversieren: INTERNET → Router → Netz → Router → Netz → ...
-    # Level: INTERNET=0, Router=1, Netz=2, Router=3, Netz=4, ...
+    # Level: INTERNET=0 (allein ganz oben)
+    #        EXTERN-Segmente=1, Router=2, INTERN=3, Sub-Router=4, Sub-Netz=5 ...
 
     all_nodes: list[TopologyNode] = []
     all_edges: list[TopologyEdge] = []
     seen_routers: set[str] = set()
 
-    # INTERNET-Pseudo-Node immer oben
+    # INTERNET-Pseudo-Node allein ganz oben (Level 0)
     all_nodes.append(TopologyNode(
         id="seg-INTERNET", type="segment", label="INTERNET",
         exposure="EXTERN", level=0, connected=True, asset_count=0,
     ))
 
-    # ── Externe Netze (EXTERN) an INTERNET hängen ─────────────────────────────
-    # Router der externe Netze verbindet → sitzt auf Level 1
-    # Externe Netze selbst → Level 0 (direkt am INTERNET)
-
+    # ── Externe Netze (EXTERN) an INTERNET hängen — Level 1 ──────────────────
     for net in ip_networks:
         net_id = f"seg-{net.name}"
         if net.exposure_level == "EXTERN":
-            # Externe Netze auf Level 0 (neben INTERNET)
             all_nodes.append(TopologyNode(
                 id=net_id, type="segment", label=net.name,
                 exposure="EXTERN", cidr=net.cidr,
                 asset_count=asset_counts.get(net.name, 0),
-                connected=True, level=0,
+                connected=True, level=1,   # ← Level 1 statt 0
             ))
             all_edges.append(TopologyEdge(
                 from_id="seg-INTERNET", to_id=net_id,
@@ -333,7 +330,7 @@ async def get_topology(
             for net in ip_networks
         ) or any(z == "EXTERN" for z in zones)
         if has_extern and str(asset.id) not in placed_routers:
-            queue.append((asset, 1))  # (asset, level)
+            queue.append((asset, 2))  # (asset, level)
             placed_routers.add(str(asset.id))
 
     # Auch Router ohne explizite EXTERN-Zone aber mit gateway_asset_id=None für EXTERN-Netze
@@ -343,7 +340,7 @@ async def get_topology(
             # Hat Router eine IP in einem EXTERN-Netz?
             for net in ip_networks:
                 if net.exposure_level == "EXTERN" and net.gateway_asset_id == asset.id:
-                    queue.append((asset, 1))
+                    queue.append((asset, 2))
                     placed_routers.add(aid)
                     break
 
