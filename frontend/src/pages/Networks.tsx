@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Globe, Plus, Trash2, RefreshCw, ChevronDown, ChevronUp, Server } from 'lucide-react'
+import { Globe, Plus, Trash2, RefreshCw, ChevronDown, ChevronUp, Server, Pencil, X, Check } from 'lucide-react'
 import Badge from '../components/Badge'
 
 const token = () => localStorage.getItem('token') ?? ''
@@ -32,10 +32,102 @@ const EXPOSURE_COLORS: Record<string, string> = {
   INTERN: 'bg-blue-900 text-blue-300 border-blue-700',
 }
 
+function EditNetworkModal({ net, onClose }: { net: Network; onClose: () => void }) {
+  const qc = useQueryClient()
+  const { data: routers = [] } = useQuery({ queryKey: ['router-assets'], queryFn: fetchRouters })
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280']
+  const [form, setForm] = useState({
+    name:             net.name,
+    cidr:             net.cidr,
+    description:      net.description || '',
+    exposure_level:   net.exposure_level,
+    color:            net.color || '#3b82f6',
+    gateway_asset_id: (net as any).gateway_asset_id || '',
+  })
+  const [error, setError] = useState('')
+
+  const update = useMutation({
+    mutationFn: () => apiFetch(`/${net.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...form, description: form.description || null, gateway_asset_id: form.gateway_asset_id || null }),
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['networks'] }); onClose() },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 className="font-semibold">Netzwerk bearbeiten</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-200"><X size={16} /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Name</label>
+            <input className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">CIDR</label>
+            <input className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              value={form.cidr} onChange={e => setForm({ ...form, cidr: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Exposure</label>
+              <select className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+                value={form.exposure_level} onChange={e => setForm({ ...form, exposure_level: e.target.value })}>
+                <option value="INTERN">INTERN</option>
+                <option value="DMZ">DMZ</option>
+                <option value="EXTERN">EXTERN</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Farbe</label>
+              <div className="flex gap-1.5 mt-1">
+                {COLORS.map(c => (
+                  <button key={c} onClick={() => setForm({ ...form, color: c })}
+                    className="w-5 h-5 rounded-full border-2 transition-all"
+                    style={{ background: c, borderColor: form.color === c ? 'white' : 'transparent' }} />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Gateway-Router</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.gateway_asset_id} onChange={e => setForm({ ...form, gateway_asset_id: e.target.value })}>
+              <option value="">— kein Gateway —</option>
+              {routers.map((r: any) => (
+                <option key={r.id} value={r.id}>{r.hostname || r.ip_address} ({r.asset_type})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">Beschreibung</label>
+            <input className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          </div>
+          {error && <p className="text-xs text-red-400 bg-red-950 border border-red-800 rounded px-3 py-2">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-800">
+          <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-200 px-4 py-2">Abbrechen</button>
+          <button onClick={() => update.mutate()} disabled={update.isPending || !form.name || !form.cidr}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm px-4 py-2 rounded-lg">
+            <Check size={14} /> {update.isPending ? 'Speichern…' : 'Speichern'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function NetworkRow({ net }: { net: Network }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const { data: assets = [], isLoading: assetsLoading } = useQuery({
     queryKey: ['network-assets', net.id],
@@ -87,12 +179,22 @@ function NetworkRow({ net }: { net: Network }) {
         )}
 
         <button
+          onClick={() => setEditing(true)}
+          className="text-gray-600 hover:text-indigo-400 transition-colors shrink-0"
+          title="Bearbeiten"
+        >
+          <Pencil size={13} />
+        </button>
+        <button
           onClick={() => del.mutate()}
           className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+          title="Löschen"
         >
           <Trash2 size={14} />
         </button>
       </div>
+
+      {editing && <EditNetworkModal net={net} onClose={() => setEditing(false)} />}
 
       {/* Asset-Liste aufklappbar */}
       {open && (
