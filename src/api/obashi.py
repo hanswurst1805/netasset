@@ -178,18 +178,29 @@ async def get_obashi(
             edges.append(OBASHIEdge(from_id=app_owner_ids[app.owner_id], to_id=a_node_id))
 
     # -----------------------------------------------------------------------
-    # Assets des Prozesses → H + S + I
+    # Assets für H + S + I:
+    # Quelle 1: asset_ids der Anwendungen (primär — über OBASHI-Editor verknüpft)
+    # Quelle 2: process_assets (alt — direkte Prozess-Asset-Zuordnung)
     # -----------------------------------------------------------------------
+    all_asset_ids: set[str] = set()
+
+    # Quelle 1: aus den Anwendungen
+    for app in applications:
+        for aid in (app.asset_ids or []):
+            all_asset_ids.add(str(aid))
+
+    # Quelle 2: direkte Prozess-Assets (Fallback)
     pa_result = await session.execute(
         select(ProcessAsset).where(ProcessAsset.process_id == process_id)
     )
-    process_assets = pa_result.scalars().all()
-    asset_ids = [pa.asset_id for pa in process_assets]
+    for pa in pa_result.scalars().all():
+        all_asset_ids.add(str(pa.asset_id))
 
-    if asset_ids:
+    if all_asset_ids:
+        import uuid as _uuid
         asset_stmt = (
             select(Asset)
-            .where(Asset.id.in_(asset_ids))
+            .where(Asset.id.in_([_uuid.UUID(aid) for aid in all_asset_ids]))
             .options(selectinload(Asset.sbom_entries))
         )
         assets = (await session.execute(asset_stmt)).scalars().all()
