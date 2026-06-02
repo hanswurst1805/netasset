@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
+from src.ingest.osv_importer import scan_all_assets_osv, scan_asset_osv
 from src.rag.cve_impact import ImpactReport, get_cve_impact
 from src.rag.query_engine import query_natural
 from src.rag.vector_search import search_cves
@@ -38,6 +39,33 @@ async def cve_impact(
     if not report:
         raise HTTPException(404, f"CVE {cve_id} nicht in lokaler Datenbank gefunden")
     return report
+
+
+@router.post("/osv/scan/asset/{asset_id}")
+async def osv_scan_asset(
+    asset_id: str,
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """
+    Scannt ein einzelnes Asset gegen OSV (Open Source Vulnerabilities).
+    Kein API-Key nötig. Findet CVEs für installierte Pakete.
+    """
+    try:
+        result = await scan_asset_osv(asset_id, session)
+        return result
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.post("/osv/scan/all")
+async def osv_scan_all(
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """Scannt alle aktiven Assets mit SBOM gegen OSV."""
+    result = await scan_all_assets_osv(session)
+    return result
 
 
 @router.get("/search")

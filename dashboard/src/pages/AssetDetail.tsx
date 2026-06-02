@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
@@ -241,6 +241,26 @@ export default function AssetDetail() {
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [osvResult, setOsvResult] = useState<any>(null)
+  const [osvLoading, setOsvLoading] = useState(false)
+
+  async function runOsvScan() {
+    setOsvLoading(true)
+    setOsvResult(null)
+    try {
+      const t = localStorage.getItem('token') ?? ''
+      const res = await fetch(`/api/v1/cve/osv/scan/asset/${id}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${t}` },
+      })
+      const data = await res.json()
+      setOsvResult(data)
+      qc.invalidateQueries({ queryKey: ['asset', id] })
+    } catch (e: any) {
+      setOsvResult({ error: e.message })
+    } finally {
+      setOsvLoading(false)
+    }
+  }
   const [tab, setTab] = useState<'info' | 'history' | 'reports' | 'card'>('info')
   const [cardTemplate, setCardTemplate] = useState('full')
   const [cardPreview, setCardPreview] = useState('')
@@ -281,6 +301,14 @@ export default function AssetDetail() {
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={runOsvScan}
+            disabled={osvLoading}
+            className="flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-green-900 text-gray-300 hover:text-green-300 px-3 py-1.5 rounded-lg border border-gray-700 hover:border-green-700 transition-colors disabled:opacity-40"
+            title="CVE-Scan via OSV (Open Source Vulnerabilities)"
+          >
+            <ShieldCheck size={13} /> {osvLoading ? 'Scanne…' : 'CVE-Scan'}
+          </button>
           <button
             onClick={() => setEditing(true)}
             className="flex items-center gap-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg border border-gray-700 transition-colors"
@@ -350,6 +378,27 @@ export default function AssetDetail() {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* OSV-Scan Ergebnis */}
+      {osvResult && (
+        <div className={`mb-4 rounded-lg border px-4 py-3 text-sm flex items-center justify-between ${
+          osvResult.error ? 'bg-red-950 border-red-800 text-red-300' :
+          osvResult.vulns_found > 0 ? 'bg-yellow-950 border-yellow-800 text-yellow-300' :
+          'bg-green-950 border-green-800 text-green-300'
+        }`}>
+          {osvResult.error ? (
+            <span>Fehler: {osvResult.error}</span>
+          ) : (
+            <span>
+              <ShieldCheck size={14} className="inline mr-1" />
+              OSV-Scan: <strong>{osvResult.scanned}</strong> Pakete geprüft,{' '}
+              <strong>{osvResult.vulns_found}</strong> Schwachstellen,{' '}
+              <strong>{osvResult.new_cves}</strong> neue CVEs
+            </span>
+          )}
+          <button onClick={() => setOsvResult(null)} className="text-xs opacity-60 hover:opacity-100">×</button>
         </div>
       )}
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Shield, Network, Package, Workflow, RefreshCw, Sparkles, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Shield, Network, Package, Workflow, RefreshCw, Sparkles, AlertTriangle, CheckCircle, ShieldCheck } from 'lucide-react'
 import Badge from '../components/Badge'
 import LastSeen from '../components/LastSeen'
 
@@ -495,15 +495,65 @@ const TABS = [
 export default function Reporting() {
   const [active, setActive] = useState('security-posture')
   const ActiveComponent = TABS.find(t => t.id === active)?.component ?? (() => null)
+  const [osvScanResult, setOsvScanResult] = useState<any>(null)
+  const [osvScanning, setOsvScanning] = useState(false)
+
+  async function runOsvScanAll() {
+    setOsvScanning(true)
+    setOsvScanResult(null)
+    try {
+      const t = localStorage.getItem('token') ?? ''
+      const res = await fetch('/api/v1/cve/osv/scan/all', {
+        method: 'POST', headers: { Authorization: `Bearer ${t}` },
+      })
+      setOsvScanResult(await res.json())
+    } catch (e: any) {
+      setOsvScanResult({ error: e.message })
+    } finally {
+      setOsvScanning(false)
+    }
+  }
 
   return (
     <div className="max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Security Reports</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Strukturierte Berichte aus deiner CMDB — sofort, ohne Wartezeit
-        </p>
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Security Reports</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Strukturierte Berichte aus deiner CMDB — sofort, ohne Wartezeit
+          </p>
+        </div>
+        <button
+          onClick={runOsvScanAll}
+          disabled={osvScanning}
+          className="flex items-center gap-2 text-sm bg-green-900/50 hover:bg-green-900 text-green-400 border border-green-800 px-4 py-2 rounded-lg transition-colors disabled:opacity-40 shrink-0"
+          title="Alle Assets gegen OSV (Open Source Vulnerabilities) scannen — kostenlos, kein API-Key"
+        >
+          <ShieldCheck size={14} />
+          {osvScanning ? 'Scanne alle Assets…' : 'OSV CVE-Scan (alle Assets)'}
+        </button>
       </div>
+
+      {osvScanResult && (
+        <div className={`mb-4 rounded-lg border px-4 py-3 text-sm flex items-center justify-between ${
+          osvScanResult.error ? 'bg-red-950 border-red-800 text-red-300' :
+          'bg-green-950 border-green-800 text-green-300'
+        }`}>
+          {osvScanResult.error ? (
+            <span>Fehler: {osvScanResult.error}</span>
+          ) : (
+            <span>
+              <ShieldCheck size={14} className="inline mr-1" />
+              OSV fertig: <strong>{osvScanResult.scanned_assets}</strong> Assets,{' '}
+              <strong>{osvScanResult.scanned_pkgs}</strong> Pakete,{' '}
+              <strong>{osvScanResult.vulns_found}</strong> Schwachstellen,{' '}
+              <strong>{osvScanResult.new_cves}</strong> neue CVEs
+            </span>
+          )}
+          <button onClick={() => setOsvScanResult(null)} className="text-xs opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
 
       {/* Tab-Navigation */}
       <div className="flex gap-1 mb-6 border-b border-gray-800">
