@@ -426,6 +426,10 @@ class CVEEntry(Base):
     modified_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     embedding = Column(Vector(384))  # all-MiniLM-L6-v2 Dimension
     raw: Mapped[Optional[dict]] = mapped_column(JSONB)
+    # CISA Known Exploited Vulnerabilities
+    is_kev: Mapped[bool] = mapped_column(Boolean, default=False)
+    kev_due_date: Mapped[Optional[str]] = mapped_column(String(20))  # YYYY-MM-DD
+    kev_ransomware: Mapped[bool] = mapped_column(Boolean, default=False)
 
     impacts: Mapped[list["CVEImpact"]] = relationship(back_populates="cve")
 

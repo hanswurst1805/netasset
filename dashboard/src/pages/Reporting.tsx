@@ -498,6 +498,9 @@ export default function Reporting() {
   const [osvScanResult, setOsvScanResult] = useState<any>(null)
   const [osvScanning, setOsvScanning] = useState(false)
 
+  const [kevResult, setKevResult] = useState<any>(null)
+  const [kevLoading, setKevLoading] = useState(false)
+
   async function runOsvScanAll() {
     setOsvScanning(true)
     setOsvScanResult(null)
@@ -511,6 +514,22 @@ export default function Reporting() {
       setOsvScanResult({ error: e.message })
     } finally {
       setOsvScanning(false)
+    }
+  }
+
+  async function runKevImport() {
+    setKevLoading(true)
+    setKevResult(null)
+    try {
+      const t = localStorage.getItem('token') ?? ''
+      const res = await fetch('/api/v1/cve/kev/import', {
+        method: 'POST', headers: { Authorization: `Bearer ${t}` },
+      })
+      setKevResult(await res.json())
+    } catch (e: any) {
+      setKevResult({ error: e.message })
+    } finally {
+      setKevLoading(false)
     }
   }
 
@@ -530,9 +549,34 @@ export default function Reporting() {
           title="Alle Assets gegen OSV (Open Source Vulnerabilities) scannen — kostenlos, kein API-Key"
         >
           <ShieldCheck size={14} />
-          {osvScanning ? 'Scanne alle Assets…' : 'OSV CVE-Scan (alle Assets)'}
+          {osvScanning ? 'Scanne…' : 'OSV-Scan'}
+        </button>
+        <button
+          onClick={runKevImport}
+          disabled={kevLoading}
+          className="flex items-center gap-2 text-sm bg-red-900/30 hover:bg-red-900/60 text-red-400 border border-red-800 px-4 py-2 rounded-lg transition-colors disabled:opacity-40 shrink-0"
+          title="CISA KEV importieren — aktiv ausgenutzte CVEs, wichtig für Windows/macOS"
+        >
+          <AlertTriangle size={14} />
+          {kevLoading ? 'Importiere…' : 'CISA KEV'}
         </button>
       </div>
+
+      {kevResult && (
+        <div className={`mb-3 rounded-lg border px-4 py-3 text-sm flex items-center justify-between ${
+          kevResult.error ? 'bg-red-950 border-red-800 text-red-300' : 'bg-orange-950 border-orange-800 text-orange-300'
+        }`}>
+          {kevResult.error ? <span>Fehler: {kevResult.error}</span> : (
+            <span>
+              <AlertTriangle size={14} className="inline mr-1" />
+              CISA KEV: <strong>{kevResult.total_kev}</strong> Einträge,{' '}
+              <strong>{kevResult.marked}</strong> CVEs markiert,{' '}
+              <strong>{kevResult.created}</strong> neue CVEs
+            </span>
+          )}
+          <button onClick={() => setKevResult(null)} className="text-xs opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
 
       {osvScanResult && (
         <div className={`mb-4 rounded-lg border px-4 py-3 text-sm flex items-center justify-between ${

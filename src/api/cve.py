@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
+from src.ingest.kev_importer import import_kev, kev_asset_scan
 from src.ingest.osv_importer import scan_all_assets_osv, scan_asset_osv
 from src.rag.cve_impact import ImpactReport, get_cve_impact
 from src.rag.query_engine import query_natural
@@ -39,6 +40,29 @@ async def cve_impact(
     if not report:
         raise HTTPException(404, f"CVE {cve_id} nicht in lokaler Datenbank gefunden")
     return report
+
+
+@router.post("/kev/import")
+async def kev_import(
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """Importiert CISA KEV (Known Exploited Vulnerabilities). Kein API-Key nötig."""
+    result = await import_kev(session)
+    return result
+
+
+@router.post("/kev/scan/asset/{asset_id}")
+async def kev_scan_asset(
+    asset_id: str,
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """Prüft ein Asset auf KEV-betroffene Software (gut für Windows/macOS)."""
+    try:
+        return await kev_asset_scan(asset_id, session)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
 
 
 @router.post("/osv/scan/asset/{asset_id}")

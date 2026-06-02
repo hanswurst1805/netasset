@@ -64,6 +64,22 @@ SOURCE_ECOSYSTEM: dict[str, str] = {
 }
 
 
+def parse_cpe(cpe: str) -> dict:
+    """
+    Parsed einen CPE-2.3-String in seine Komponenten.
+    cpe:2.3:a:vendor:product:version:... → {vendor, product, version}
+    """
+    parts = cpe.split(":")
+    if len(parts) < 6:
+        return {}
+    return {
+        "part":    parts[2],  # a=application, o=os, h=hardware
+        "vendor":  parts[3],
+        "product": parts[4],
+        "version": parts[5] if parts[5] != "*" else "",
+    }
+
+
 def _get_ecosystem(entry: SBOMEntry) -> Optional[str]:
     src = (entry.source or "").lower()
     typ = (entry.pkg_type or "").lower()
@@ -151,13 +167,31 @@ async def scan_asset_osv(
     pkg_list = []
     entry_map = []  # Zuordnung: index → SBOMEntry
     for entry in sbom[:max_pkgs]:
+        # Strategie 1: direkt über bekanntes Ecosystem
         eco = _get_ecosystem(entry)
+
+        # Strategie 2: CPE-basiert für Windows/macOS-Programme ohne Ecosystem
+        if not eco and entry.cpe:
+            parsed = parse_cpe(entry.cpe)
+            product = parsed.get("product", "")
+            version = parsed.get("version", "") or entry.pkg_version
+            # Versuche bekannte CPE-Vendor→Ecosystem Mappings
+            vendor = parsed.get("vendor", "").lower()
+            # Für bekannte Open-Source-Produkte über CPE
+            if product:
+                # Keine direkte Ecosystem-Zuordnung möglich → überspringen
+                # (wird durch KEV-Scan abgedeckt)
+                pass
+
         if not eco:
             continue
-        # CPE-basierte Normalisierung für Debian
-        name = entry.pkg_name
-        version = entry.pkg_version.split("+")[0].split("~")[0]  # Debian-Suffixe entfernen
-        pkg_list.append({"name": name, "version": version, "ecosystem": eco})
+
+        # Debian-Suffixe entfernen: 1.2.3-4ubuntu1 → 1.2.3
+        version = entry.pkg_version.split("+")[0].split("~")[0].split("-")[0]
+        if not version:
+            version = entry.pkg_version
+
+        pkg_list.append({"name": entry.pkg_name, "version": version, "ecosystem": eco})
         entry_map.append(entry)
 
     if not pkg_list:
