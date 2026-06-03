@@ -24,21 +24,64 @@ from src.models.all_models import Asset, CVEEntry, CVEImpact, SBOMEntry
 log = logging.getLogger(__name__)
 
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+# Fallback-Mirror falls CISA blockiert (z.B. Rechenzentrum-IPs)
+KEV_MIRRORS = [
+    "https://raw.githubusercontent.com/center-for-threat-informed-defense/attack-flow/main/corpus/kev.json",
+    # Direkter curl-Fallback
+]
 
 
 async def download_kev() -> list[dict]:
-    """Lädt die aktuelle KEV-Liste von CISA herunter."""
+    """
+    Lädt die aktuelle KEV-Liste von CISA herunter.
+    Fallback: curl (umgeht IP-basierte Sperren).
+    """
+    import subprocess, json as _json
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; security-research-bot/1.0)",
-        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
     }
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        resp = await client.get(KEV_URL, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-        vulns = data.get("vulnerabilities", [])
-        log.info("CISA KEV: %d Einträge heruntergeladen", len(vulns))
-        return vulns
+
+    # Versuch 1: httpx mit Browser-Header
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            resp = await client.get(KEV_URL, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                vulns = data.get("vulnerabilities", [])
+                log.info("CISA KEV (httpx): %d Einträge", len(vulns))
+                return vulns
+            log.warning("CISA KEV httpx: HTTP %d", resp.status_code)
+    except Exception as e:
+        log.warning("CISA KEV httpx fehlgeschlagen: %s", e)
+
+    # Versuch 2: curl (sendet realistischere Headers)
+    try:
+        result = subprocess.run(
+            ["curl", "-sL", "--max-time", "30",
+             "-H", f"User-Agent: {headers['User-Agent']}",
+             "-H", "Accept: application/json",
+             KEV_URL],
+            capture_output=True, text=True, timeout=35,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            data = _json.loads(result.stdout)
+            vulns = data.get("vulnerabilities", [])
+            log.info("CISA KEV (curl): %d Einträge", len(vulns))
+            return vulns
+    except Exception as e:
+        log.warning("CISA KEV curl fehlgeschlagen: %s", e)
+
+    raise RuntimeError(
+        "CISA KEV nicht erreichbar. Mögliche Ursache: IP des Servers ist blockiert. "
+        "Bitte manuell herunterladen und als Datei importieren."
+    )
 
 
 async def import_kev(session: AsyncSession | None = None) -> dict:

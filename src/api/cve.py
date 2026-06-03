@@ -1,7 +1,7 @@
 from __future__ import annotations
 """CVE & Security API Router"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +48,44 @@ async def kev_import(
     ctx: AuthContext = Depends(get_current_user),
 ):
     """Importiert CISA KEV (Known Exploited Vulnerabilities). Kein API-Key nötig."""
-    result = await import_kev(session)
+    try:
+        result = await import_kev(session)
+        return result
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+
+
+@router.post("/kev/upload")
+async def kev_upload(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """
+    Manueller KEV-Import via Datei-Upload.
+    Download: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+    → „Download Vulnerability Catalog (JSON)"
+    """
+    from src.ingest.kev_importer import import_kev
+    content = await file.read()
+    import json as _json
+    data = _json.loads(content)
+    vulns = data.get("vulnerabilities", [])
+    if not vulns:
+        raise HTTPException(400, "Keine Vulnerabilities in der Datei gefunden")
+
+    # Temporär in Funktion injizieren
+    from src.ingest import kev_importer as _kev
+    original = _kev.download_kev
+
+    async def _mock():
+        return vulns
+
+    _kev.download_kev = _mock
+    try:
+        result = await import_kev(session)
+    finally:
+        _kev.download_kev = original
     return result
 
 

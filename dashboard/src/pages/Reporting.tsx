@@ -555,11 +555,30 @@ export default function Reporting() {
           onClick={runKevImport}
           disabled={kevLoading}
           className="flex items-center gap-2 text-sm bg-red-900/30 hover:bg-red-900/60 text-red-400 border border-red-800 px-4 py-2 rounded-lg transition-colors disabled:opacity-40 shrink-0"
-          title="CISA KEV importieren — aktiv ausgenutzte CVEs, wichtig für Windows/macOS"
+          title="CISA KEV automatisch laden (falls geblockt → JSON-Upload nutzen)"
         >
           <AlertTriangle size={14} />
           {kevLoading ? 'Importiere…' : 'CISA KEV'}
         </button>
+        <label className="flex items-center gap-2 text-sm bg-red-900/20 hover:bg-red-900/40 text-red-500 border border-red-900 px-3 py-2 rounded-lg cursor-pointer transition-colors shrink-0"
+          title="Manueller KEV-Upload: https://www.cisa.gov/known-exploited-vulnerabilities-catalog → JSON herunterladen">
+          <AlertTriangle size={12} />
+          KEV-Datei
+          <input type="file" accept=".json" className="hidden" onChange={async e => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            setKevLoading(true)
+            try {
+              const fd = new FormData(); fd.append('file', file)
+              const t = localStorage.getItem('token') ?? ''
+              const res = await fetch('/api/v1/cve/kev/upload', {
+                method: 'POST', headers: { Authorization: `Bearer ${t}` }, body: fd,
+              })
+              setKevResult(await res.json())
+            } catch (e: any) { setKevResult({ error: e.message }) }
+            finally { setKevLoading(false); e.target.value = '' }
+          }} />
+        </label>
       </div>
 
       {kevResult && (
