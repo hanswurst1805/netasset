@@ -28,8 +28,12 @@ KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulner
 
 async def download_kev() -> list[dict]:
     """Lädt die aktuelle KEV-Liste von CISA herunter."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(KEV_URL)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; security-research-bot/1.0)",
+        "Accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        resp = await client.get(KEV_URL, headers=headers)
         resp.raise_for_status()
         data = resp.json()
         vulns = data.get("vulnerabilities", [])
