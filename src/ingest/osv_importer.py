@@ -231,10 +231,15 @@ async def scan_asset_osv(
             if not vuln_id:
                 continue
 
-            # Für Ubuntu-Systeme: DEBIAN-CVE ignorieren.
-            # Ubuntu patcht eigenständig und hat ein separates OSV-Ecosystem.
-            if is_ubuntu and vuln_id.startswith("DEBIAN-"):
-                continue
+            # Für Ubuntu-Systeme: Nur echte CVE-IDs und Ubuntu-Advisories.
+            # DEBIAN-CVE-* und DLA-* (Debian LTS) sind nicht Ubuntu-spezifisch.
+            if is_ubuntu:
+                aliases = [a for a in vuln.get("aliases", []) if a.startswith("CVE-")]
+                if vuln_id.startswith("DEBIAN-") or vuln_id.startswith("DLA-"):
+                    if not aliases:
+                        continue  # Kein CVE-Alias → für Ubuntu nicht relevant
+                    # Hat CVE-Alias → diesen als primäre ID verwenden
+                    vuln_id = aliases[0]
             vulns_found += 1
 
             # Aliases: bevorzuge CVE-IDs
