@@ -80,11 +80,18 @@ def parse_cpe(cpe: str) -> dict:
     }
 
 
-def _get_ecosystem(entry: SBOMEntry) -> Optional[str]:
+def _get_ecosystem(entry: SBOMEntry, os_name: str = "") -> Optional[str]:
     src = (entry.source or "").lower()
     typ = (entry.pkg_type or "").lower()
-    return (ECOSYSTEM_MAP.get((src, typ))
-            or SOURCE_ECOSYSTEM.get(src))
+    eco = ECOSYSTEM_MAP.get((src, typ)) or SOURCE_ECOSYSTEM.get(src)
+
+    # Ubuntu hat ein eigenes OSV-Ecosystem — viel präziser als Debian.
+    # Ubuntu-Packages die als "Debian" klassifiziert würden → "Ubuntu" verwenden.
+    # Das Debian-Ecosystem enthält viele CVEs die Ubuntu bereits gepatcht hat.
+    if eco == "Debian" and "ubuntu" in os_name.lower():
+        eco = "Ubuntu"
+
+    return eco
 
 
 def _parse_severity(osv_vuln: dict) -> tuple[float | None, str | None]:
@@ -166,9 +173,12 @@ async def scan_asset_osv(
     # Pakete mit bekanntem Ecosystem vorbereiten
     pkg_list = []
     entry_map = []  # Zuordnung: index → SBOMEntry
+    os_name = asset.os_name or ""
+    log.info("OSV-Scan: %s (OS: %s)", asset.hostname or asset_id, os_name)
+
     for entry in sbom[:max_pkgs]:
-        # Strategie 1: direkt über bekanntes Ecosystem
-        eco = _get_ecosystem(entry)
+        # Strategie 1: direkt über bekanntes Ecosystem (OS-aware)
+        eco = _get_ecosystem(entry, os_name)
 
         # Strategie 2: CPE-basiert für Windows/macOS-Programme ohne Ecosystem
         if not eco and entry.cpe:
@@ -213,10 +223,17 @@ async def scan_asset_osv(
     vulns_found = 0
     EXPOSURE_FACTOR = {"EXTERN": 1.5, "DMZ": 1.2, "INTERN": 1.0}
 
+    is_ubuntu = "ubuntu" in os_name.lower()
+
     for entry, vulns in zip(entry_map, all_vulns):
         for vuln in vulns:
             vuln_id = vuln.get("id", "")
             if not vuln_id:
+                continue
+
+            # Für Ubuntu-Systeme: DEBIAN-CVE ignorieren.
+            # Ubuntu patcht eigenständig und hat ein separates OSV-Ecosystem.
+            if is_ubuntu and vuln_id.startswith("DEBIAN-"):
                 continue
             vulns_found += 1
 
