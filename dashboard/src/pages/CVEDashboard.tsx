@@ -125,7 +125,12 @@ export default function CVEDashboard() {
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-mono text-sm text-indigo-400">{r.cve_id}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm text-indigo-400">{r.cve_id}</span>
+                    {(r as any).is_kev && (
+                      <span className="text-xs bg-red-900 text-red-300 border border-red-700 px-1.5 py-0.5 rounded font-bold">KEV</span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     {r.cvss_score && (
                       <span className="text-xs text-gray-500">CVSS {r.cvss_score}</span>
@@ -134,7 +139,19 @@ export default function CVEDashboard() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{r.description}</p>
-                <div className="text-xs text-gray-600 mt-1">Similarity: {(r.similarity * 100).toFixed(0)}%</div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="text-xs text-gray-600">Similarity: {(r.similarity * 100).toFixed(0)}%</div>
+                  {(r as any).affected_assets > 0 && (
+                    <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      (r as any).affected_assets >= 5 ? 'bg-red-900/50 text-red-400' :
+                      (r as any).affected_assets >= 2 ? 'bg-yellow-900/50 text-yellow-400' :
+                      'bg-gray-800 text-gray-400'
+                    }`}>
+                      <span>⚠</span>
+                      <span>{(r as any).affected_assets} System{(r as any).affected_assets !== 1 ? 'e' : ''} betroffen</span>
+                    </div>
+                  )}
+                </div>
               </button>
             ))}
           </div>

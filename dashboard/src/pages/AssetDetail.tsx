@@ -7,6 +7,36 @@ import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileTex
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
+import { AlertTriangle } from 'lucide-react'
+
+// Top-CVE-Box für Ports / SBOM
+function CveBox({ cves, label }: { cves: any[]; label: string }) {
+  if (!cves || cves.length === 0) return null
+  return (
+    <div className="mt-3 bg-gray-900/50 border border-red-900/40 rounded-lg p-3">
+      <div className="text-xs font-semibold text-red-400 mb-2 flex items-center gap-1.5">
+        <AlertTriangle size={11} /> Top CVEs — {label}
+      </div>
+      <div className="space-y-1.5">
+        {cves.map((c: any) => (
+          <div key={c.cve_id} className="flex items-center gap-2 text-xs">
+            <span className="font-mono text-indigo-400 shrink-0">{c.cve_id}</span>
+            {c.is_kev && <span className="bg-red-900 text-red-300 px-1 py-0.5 rounded text-xs font-bold">KEV</span>}
+            <span className={`shrink-0 px-1.5 py-0.5 rounded text-xs font-semibold ${
+              c.risk_level === 'HIGH' ? 'bg-red-900/50 text-red-400' :
+              c.risk_level === 'MEDIUM' ? 'bg-yellow-900/50 text-yellow-400' :
+              'bg-gray-800 text-gray-500'
+            }`}>{c.risk_level}</span>
+            {c.affected_pkg && (
+              <span className="text-gray-500 truncate">{c.affected_pkg} {c.affected_ver}</span>
+            )}
+            <span className="ml-auto text-gray-600 shrink-0">{c.risk_score?.toFixed(1)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Tag-Eingabe
@@ -276,6 +306,20 @@ export default function AssetDetail() {
     queryKey: ['sbom', id],
     queryFn: () => api.sbom.get(id!),
     enabled: !!id,
+  })
+
+  const { data: cveExposure } = useQuery({
+    queryKey: ['cve-exposure', id],
+    queryFn: async () => {
+      const t = localStorage.getItem('token') ?? ''
+      const res = await fetch(`/api/v1/cve/assets/${id}/cve-exposure`, {
+        headers: { Authorization: `Bearer ${t}` },
+      })
+      if (!res.ok) return null
+      return res.json()
+    },
+    enabled: !!id,
+    staleTime: 5 * 60_000,
   })
 
   const del = useMutation({
@@ -558,6 +602,8 @@ export default function AssetDetail() {
               </tbody>
             </table>
           </div>
+          {/* Top CVEs für Ports */}
+          <CveBox cves={cveExposure?.port_cves} label="Netzwerk/System" />
         </section>
       )}
 
@@ -591,6 +637,8 @@ export default function AssetDetail() {
             </tbody>
           </table>
         </div>
+        {/* Top CVEs aus SBOM */}
+        <CveBox cves={cveExposure?.sbom_cves} label="Software/Pakete" />
       </section>
 
       </>}

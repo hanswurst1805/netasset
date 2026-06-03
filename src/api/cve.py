@@ -135,9 +135,96 @@ async def search(
     top_k: int = 10,
     min_cvss: float = 0.0,
     ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ):
-    results = await search_cves(q, top_k=top_k, min_cvss=min_cvss)
+    """Semantische CVE-Suche — gibt auch Anzahl betroffener Systeme zurück."""
+    from sqlalchemy import func, select
+    from src.models.all_models import CVEImpact
+
+    results = await search_cves(q, top_k=top_k, min_cvss=min_cvss, session=session)
+
+    # Betroffene Systeme pro CVE zählen
+    if results:
+        cve_ids = [r["cve_id"] for r in results]
+        count_result = await session.execute(
+            select(CVEImpact.cve_id, func.count(CVEImpact.asset_id).label("cnt"))
+            .where(CVEImpact.cve_id.in_(cve_ids))
+            .group_by(CVEImpact.cve_id)
+        )
+        affected_map = {row.cve_id: row.cnt for row in count_result}
+        for r in results:
+            r["affected_assets"] = affected_map.get(r["cve_id"], 0)
+
     return results
+
+
+@router.get("/assets/{asset_id}/cve-exposure")
+async def asset_cve_exposure(
+    asset_id: str,
+    session: AsyncSession = Depends(get_session),
+    ctx: AuthContext = Depends(get_current_user),
+):
+    """Top CVEs für ein Asset — aufgeteilt nach SBOM (Software) und Ports."""
+    import uuid
+    from sqlalchemy import desc, select
+    from src.models.all_models import CVEEntry, CVEImpact, SBOMEntry
+
+    try:
+        aid = uuid.UUID(asset_id)
+    except ValueError:
+        raise HTTPException(400, "Ungültige Asset-ID")
+
+    # Alle CVE-Impacts für dieses Asset
+    stmt = (
+        select(CVEImpact, CVEEntry)
+        .outerjoin(CVEEntry, CVEImpact.cve_id == CVEEntry.cve_id)
+        .where(CVEImpact.asset_id == aid)
+        .order_by(desc(CVEImpact.risk_score))
+        .limit(20)
+    )
+    result = await session.execute(stmt)
+    rows = result.all()
+
+    # SBOM-Pakete für dieses Asset
+    sbom_result = await session.execute(
+        select(SBOMEntry.pkg_name).where(SBOMEntry.asset_id == aid)
+    )
+    sbom_names = {r[0].lower() for r in sbom_result}
+
+    sbom_cves = []
+    port_cves = []
+    seen = set()
+
+    for impact, cve in rows:
+        if impact.cve_id in seen:
+            continue
+        seen.add(impact.cve_id)
+
+        entry = {
+            "cve_id": impact.cve_id,
+            "risk_score": impact.risk_score,
+            "risk_level": impact.risk_level,
+            "affected_pkg": impact.affected_pkg,
+            "affected_ver": impact.affected_ver,
+            "cvss_score": cve.cvss_score if cve else None,
+            "severity": cve.severity if cve else None,
+            "description": (cve.description[:120] + "…") if cve and cve.description else "",
+            "is_kev": cve.is_kev if cve else False,
+        }
+
+        # Zuordnung: Software-CVE wenn Paketname in SBOM, sonst Port/System-CVE
+        pkg = (impact.affected_pkg or "").lower()
+        if pkg and pkg in sbom_names:
+            sbom_cves.append(entry)
+        else:
+            port_cves.append(entry)
+
+    return {
+        "asset_id": asset_id,
+        "sbom_cves": sbom_cves[:5],
+        "port_cves": port_cves[:5],
+        "total": len(rows),
+    }
 
 
 @router.post("/query", response_model=QueryResponse)
