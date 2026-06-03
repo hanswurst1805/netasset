@@ -621,9 +621,16 @@ export default function AssetDetail() {
 
       {/* Tags + Konfidenz-Badge */}
       <div className="flex gap-2 mb-6 flex-wrap items-center">
-        {(asset.tags ?? []).map(tag => (
-          <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded">{tag}</span>
-        ))}
+        {(asset.tags ?? []).map(tag => {
+          // Update/Reboot-Tags farblich hervorheben
+          if (tag === 'reboot-required')
+            return <span key={tag} className="text-xs bg-red-900 text-red-300 border border-red-700 px-2 py-1 rounded font-semibold">🔄 Reboot erforderlich</span>
+          if (tag.startsWith('security-updates:'))
+            return <span key={tag} className="text-xs bg-orange-900 text-orange-300 border border-orange-700 px-2 py-1 rounded font-semibold">🔒 {tag.split(':')[1]} Security-Updates</span>
+          if (tag.startsWith('updates:'))
+            return <span key={tag} className="text-xs bg-yellow-900/60 text-yellow-300 border border-yellow-800 px-2 py-1 rounded">⬆ {tag.split(':')[1]} Updates</span>
+          return <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded">{tag}</span>
+        })}
         {(!asset.tags || asset.tags.length === 0) && (
           <span className="text-xs text-gray-600">Keine Tags — über „Bearbeiten" hinzufügen</span>
         )}

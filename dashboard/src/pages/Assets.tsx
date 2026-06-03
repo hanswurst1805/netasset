@@ -109,9 +109,15 @@ export default function Assets() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 flex-wrap">
-                    {asset.tags?.slice(0, 3).map(tag => (
-                      <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{tag}</span>
-                    ))}
+                    {asset.tags?.slice(0, 3).map(tag => {
+                      if (tag === 'reboot-required')
+                        return <span key={tag} className="text-xs bg-red-900/70 text-red-300 px-1.5 py-0.5 rounded">🔄</span>
+                      if (tag.startsWith('security-updates:'))
+                        return <span key={tag} className="text-xs bg-orange-900/70 text-orange-300 px-1.5 py-0.5 rounded">🔒{tag.split(':')[1]}</span>
+                      if (tag.startsWith('updates:'))
+                        return <span key={tag} className="text-xs bg-yellow-900/50 text-yellow-400 px-1.5 py-0.5 rounded">⬆{tag.split(':')[1]}</span>
+                      return <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{tag}</span>
+                    })}
                   </div>
                 </td>
                 <td className="px-4 py-3">
