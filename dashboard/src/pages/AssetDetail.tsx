@@ -3,11 +3,75 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
 import { AlertTriangle } from 'lucide-react'
+
+// Aufklappbare SBOM-Liste
+function SbomSection({ sbom }: { sbom: any[] }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const filtered = sbom.filter(e =>
+    !search || e.pkg_name?.toLowerCase().includes(search.toLowerCase()) || e.pkg_version?.includes(search)
+  )
+  return (
+    <section className="mb-6">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between text-sm font-semibold text-gray-400 uppercase tracking-wider mb-0 hover:text-gray-200 transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <Package size={14} /> SBOM ({sbom.length} Pakete)
+        </span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div className="mt-3 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <div className="px-3 py-2 border-b border-gray-800">
+            <input
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1 text-xs text-gray-300 focus:outline-none"
+              placeholder="Paket suchen…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-gray-900">
+                <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase">
+                  <th className="text-left px-4 py-2">Paket</th>
+                  <th className="text-left px-4 py-2">Version</th>
+                  <th className="text-left px-4 py-2">Typ</th>
+                  <th className="text-left px-4 py-2">Quelle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-4 text-center text-gray-600 text-xs">Keine Pakete gefunden</td></tr>
+                )}
+                {filtered.map(e => (
+                  <tr key={e.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="px-4 py-1.5 font-medium text-sm">{e.pkg_name}</td>
+                    <td className="px-4 py-1.5 font-mono text-gray-400 text-xs">{e.pkg_version}</td>
+                    <td className="px-4 py-1.5 text-gray-500 text-xs">{e.pkg_type ?? '—'}</td>
+                    <td className="px-4 py-1.5 text-gray-500 text-xs">{e.source ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filtered.length < sbom.length && (
+            <div className="px-4 py-2 text-xs text-gray-600 border-t border-gray-800">
+              {filtered.length} von {sbom.length} angezeigt
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
 
 // Top-CVE-Box für Ports / SBOM
 function CveBox({ cves, label }: { cves: any[]; label: string }) {
@@ -570,11 +634,25 @@ export default function AssetDetail() {
         )}
       </div>
 
-      {/* Ports */}
+      {/* 1. CVEs — zuerst, direkt sichtbar */}
+      {cveExposure && (cveExposure.sbom_cves?.length > 0 || cveExposure.port_cves?.length > 0) && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <AlertTriangle size={14} className="text-red-400" /> CVE-Risiken
+            <span className="text-xs text-gray-600 font-normal ml-1">
+              ({(cveExposure.sbom_cves?.length || 0) + (cveExposure.port_cves?.length || 0)} von {cveExposure.total} angezeigt)
+            </span>
+          </h2>
+          {cveExposure.sbom_cves?.length > 0 && <CveBox cves={cveExposure.sbom_cves} label="Software/Pakete" />}
+          {cveExposure.port_cves?.length > 0 && <CveBox cves={cveExposure.port_cves} label="Netzwerk/System" />}
+        </section>
+      )}
+
+      {/* 2. Ports */}
       {asset.open_ports && asset.open_ports.length > 0 && (
         <section className="mb-6">
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Network size={14} /> Offene Ports
+            <Network size={14} /> Offene Ports ({asset.open_ports.length})
           </h2>
           <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
@@ -602,44 +680,11 @@ export default function AssetDetail() {
               </tbody>
             </table>
           </div>
-          {/* Top CVEs für Ports */}
-          <CveBox cves={cveExposure?.port_cves} label="Netzwerk/System" />
         </section>
       )}
 
-      {/* SBOM */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Package size={14} /> SBOM ({sbom.length} Pakete)
-        </h2>
-        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase">
-                <th className="text-left px-4 py-2">Paket</th>
-                <th className="text-left px-4 py-2">Version</th>
-                <th className="text-left px-4 py-2">Typ</th>
-                <th className="text-left px-4 py-2">Quelle</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sbom.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-600">Kein SBOM vorhanden</td></tr>
-              )}
-              {sbom.map(e => (
-                <tr key={e.id} className="border-b border-gray-800">
-                  <td className="px-4 py-2 font-medium">{e.pkg_name}</td>
-                  <td className="px-4 py-2 font-mono text-gray-400">{e.pkg_version}</td>
-                  <td className="px-4 py-2 text-gray-500">{e.pkg_type ?? '—'}</td>
-                  <td className="px-4 py-2 text-gray-500">{e.source ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {/* Top CVEs aus SBOM */}
-        <CveBox cves={cveExposure?.sbom_cves} label="Software/Pakete" />
-      </section>
+      {/* 3. SBOM — aufklappbar */}
+      <SbomSection sbom={sbom} />
 
       </>}
 
