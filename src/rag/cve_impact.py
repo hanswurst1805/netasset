@@ -134,9 +134,18 @@ async def get_cve_impact(
                     is_affected = True
                     break
             else:
-                # Kein explizites Paket-Mapping → Heuristic via Name in Description
-                if entry.pkg_name.lower() in cve.description.lower():
-                    is_affected = True
+                # Fallback: Name in Beschreibung — nur bei aussagekräftigen Namen
+                pkg = entry.pkg_name.lower()
+                # Mindestlänge 4, keine reinen Stop-Words
+                SKIP_NAMES = {"at", "ed", "is", "in", "to", "an", "or", "go",
+                              "lib", "apt", "yum", "dnf", "git", "man", "zip",
+                              "tar", "sed", "awk", "cut", "wc", "cp", "mv"}
+                if len(pkg) >= 4 and pkg not in SKIP_NAMES:
+                    import re as _re
+                    # Wort-Grenze: Paketname als eigenständiges Wort in Beschreibung
+                    pattern = r'\b' + _re.escape(pkg) + r'\b'
+                    if _re.search(pattern, cve.description.lower()):
+                        is_affected = True
 
             if is_affected:
                 cvss = cve.cvss_score or 5.0
