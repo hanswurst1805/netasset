@@ -253,10 +253,22 @@ class IdentityResolver:
             flag_modified(asset, "open_ports")  # JSONB Mutation explizit markieren
             updated_fields.append("open_ports")
 
-        # tags: IMMER additiv
-        if "tags" in new_data and new_data["tags"]:
+        # tags: additiv — ABER dynamische Status-Tags werden ersetzt
+        if "tags" in new_data and new_data["tags"] is not None:
             existing_tags = set(asset.tags or [])
-            existing_tags.update(new_data["tags"])
+
+            # Dynamische Tags die der Collector vollständig kontrolliert:
+            # Diese werden ENTFERNT und durch die neuen Werte ersetzt
+            DYNAMIC_PREFIXES = ("updates:", "security-updates:", "reboot-required", "os:")
+            new_tags_set = set(new_data["tags"])
+            # Nur dynamic tags aus dem aktuellen Source entfernen
+            if new_source in ("osquery",):
+                existing_tags = {
+                    t for t in existing_tags
+                    if not any(t.startswith(p) or t == p for p in DYNAMIC_PREFIXES)
+                }
+
+            existing_tags.update(new_tags_set)
             asset.tags = list(existing_tags)
             flag_modified(asset, "tags")
 
