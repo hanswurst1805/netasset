@@ -22,7 +22,7 @@ async def _ensure_admin():
     """Legt beim ersten Start einen Admin-User an, falls keiner existiert."""
     async with async_session_factory() as session:
         existing = (await session.execute(
-            select(User).where(User.role == "admin")
+            select(User).where(User.role == "admin").limit(1)
         )).scalar_one_or_none()
         if not existing:
             admin = User(
