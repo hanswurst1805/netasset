@@ -5,15 +5,15 @@ import { api } from '../api/client'
 import { fetchConflictCount } from '../pages/ConflictQueue'
 
 const nav = [
-  { to: '/assets',    icon: Server,        label: 'Assets' },
-  { to: '/reporting', icon: BarChart2,     label: 'Reports' },
-  { to: '/cards',     icon: CreditCard,   label: 'Karteikarten' },
-  { to: '/networks',  icon: Globe,         label: 'Netzwerke' },
-  { to: '/topology',  icon: Network,       label: 'Topologie' },
-  { to: '/cve',       icon: ShieldAlert,   label: 'CVE Dashboard' },
-  { to: '/chat',      icon: MessageSquare, label: 'Chatbot' },
-  { to: '/obashi',    icon: Workflow,        label: 'OBASHI' },
-  { to: '/processes', icon: Workflow,       label: 'Prozesse' },
+  { to: '/assets',    icon: Server,        label: 'Assets',          group: null },
+  { to: '/reporting', icon: BarChart2,     label: 'Reports',         group: null },
+  { to: '/cards',     icon: CreditCard,   label: 'Karteikarten',    group: null },
+  { to: '/networks',  icon: Globe,         label: 'Netzwerke',       group: null },
+  { to: '/topology',  icon: Network,       label: 'Topologie',       group: null },
+  { to: '/cve',       icon: ShieldAlert,   label: 'CVE Dashboard',   group: null },
+  { to: '/chat',      icon: MessageSquare, label: 'Chatbot',         group: null },
+  { to: '/obashi',    icon: Workflow,      label: 'BASIS',           group: 'bia' },
+  { to: '/processes', icon: Workflow,      label: 'Business-Prozesse', group: 'bia' },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -37,8 +37,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className="text-xl font-black tracking-tight text-white">DRUCKER</span>
           <p className="text-xs text-gray-500 mt-0.5">Infrastructure Intelligence</p>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {nav.map(({ to, icon: Icon, label }) => (
+        <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+          {/* Normale Nav-Einträge */}
+          {nav.filter(n => !n.group).map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
@@ -54,6 +55,29 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               {label}
             </NavLink>
           ))}
+
+          {/* Business Impact Analyse Gruppe */}
+          <div className="pt-2">
+            <div className="px-3 py-1 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              Business Impact Analyse
+            </div>
+            {nav.filter(n => n.group === 'bia').map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                    isActive
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100'
+                  }`
+                }
+              >
+                <Icon size={16} />
+                {label}
+              </NavLink>
+            ))}
+          </div>
         </nav>
         <div className="p-2 border-t border-gray-800 space-y-1">
           <NavLink
