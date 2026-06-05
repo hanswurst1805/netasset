@@ -46,7 +46,7 @@ export default function App() {
                   <Route path="/networks" element={<Networks />} />
                   <Route path="/reporting" element={<Reporting />} />
                   <Route path="/cards" element={<CardExport />} />
-                  <Route path="/obashi" element={<OBASHIEditor />} />
+                  <Route path="/basis" element={<OBASHIEditor />} />
                 </Routes>
               </Layout>
             </RequireAuth>

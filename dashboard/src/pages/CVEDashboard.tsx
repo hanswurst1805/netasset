@@ -152,6 +152,13 @@ export default function CVEDashboard() {
                     </div>
                   )}
                 </div>
+                {(r as any).affected_hostnames?.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {(r as any).affected_hostnames.map((h: string) => (
+                      <span key={h} className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono">{h}</span>
+                    ))}
+                  </div>
+                )}
               </button>
             ))}
           </div>

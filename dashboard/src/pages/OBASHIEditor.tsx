@@ -360,9 +360,9 @@ export default function OBASHIEditor() {
   return (
     <div className="max-w-6xl">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold">OBASHI Editor</h1>
+        <h1 className="text-2xl font-bold">BASIS Editor</h1>
         <p className="text-sm text-gray-500 mt-1">
-          O → B → A → S/H/I — Prozesse und Anwendungen anlegen, Assets verknüpfen
+          BASIS (Business · Application · Service · Infrastructure · Systems) — Prozesse und Anwendungen anlegen, Assets verknüpfen
         </p>
       </div>
 
@@ -469,12 +469,12 @@ export default function OBASHIEditor() {
             <AppLayerPreview app={selApp} assets={assets} />
           ) : sel?.type === 'proc' && selProc ? (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-400">OBASHI-Ansicht</h3>
+              <h3 className="text-sm font-semibold text-gray-400">BASIS-Ansicht</h3>
               <button
                 onClick={() => navigate('/processes')}
                 className="w-full text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg border border-gray-700"
               >
-                Vollständige OBASHI-Ansicht öffnen
+                Vollständige BASIS-Ansicht öffnen
               </button>
               <div className="text-xs text-gray-600 space-y-1">
                 {appsForProc(selProc!.id).map((a: any) => (

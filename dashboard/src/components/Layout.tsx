@@ -12,7 +12,7 @@ const nav = [
   { to: '/topology',  icon: Network,       label: 'Topologie',       group: null },
   { to: '/cve',       icon: ShieldAlert,   label: 'CVE Dashboard',   group: null },
   { to: '/chat',      icon: MessageSquare, label: 'Chatbot',         group: null },
-  { to: '/obashi',    icon: Workflow,      label: 'BASIS',           group: 'bia' },
+  { to: '/basis',    icon: Workflow,      label: 'BASIS',           group: 'bia' },
   { to: '/processes', icon: Workflow,      label: 'Business-Prozesse', group: 'bia' },
 ]
 

@@ -143,17 +143,26 @@ async def search(
 
     results = await search_cves(q, top_k=top_k, min_cvss=min_cvss, session=session)
 
-    # Betroffene Systeme pro CVE zählen
+    # Betroffene Systeme pro CVE – Anzahl + Hostnamen
     if results:
+        from src.models.all_models import Asset
         cve_ids = [r["cve_id"] for r in results]
-        count_result = await session.execute(
-            select(CVEImpact.cve_id, func.count(CVEImpact.asset_id).label("cnt"))
-            .where(CVEImpact.cve_id.in_(cve_ids))
-            .group_by(CVEImpact.cve_id)
+        rows = await session.execute(
+            select(CVEImpact.cve_id, Asset.id, Asset.hostname, Asset.ip_address)
+            .join(Asset, CVEImpact.asset_id == Asset.id)
+            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True)
         )
-        affected_map = {row.cve_id: row.cnt for row in count_result}
+        affected_map: dict[str, list[str]] = {}
+        for row in rows:
+            label = row.hostname or str(row.ip_address) or str(row.id)
+            affected_map.setdefault(row.cve_id, []).append(label)
         for r in results:
-            r["affected_assets"] = affected_map.get(r["cve_id"], 0)
+            hosts = affected_map.get(r["cve_id"], [])
+            r["affected_assets"] = len(hosts)
+            r["affected_hostnames"] = hosts
+
+    # Nach CVSS absteigend sortieren, danach Anzahl betroffener Systeme
+    results.sort(key=lambda r: (r.get("cvss_score") or 0, r.get("affected_assets") or 0), reverse=True)
 
     return results
 

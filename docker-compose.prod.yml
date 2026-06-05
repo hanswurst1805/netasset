@@ -19,7 +19,10 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://netasset:${DB_PASSWORD}@db:5432/netasset
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-anthropic/claude-sonnet-4-5}
+      JWT_SECRET: ${JWT_SECRET}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-changeme}
       NVD_API_KEY: ${NVD_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
