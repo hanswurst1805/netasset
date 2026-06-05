@@ -18,6 +18,43 @@ logger = logging.getLogger(__name__)
 # Exposure → Risikofaktor
 EXPOSURE_FACTOR = {"EXTERN": 1.5, "DMZ": 1.2, "INTERN": 1.0}
 
+# Pakete, die auf VMs/Containern nicht exploitierbar sind:
+# Microcode wird vom Hypervisor-Host geladen, nicht vom Gast-OS.
+VM_IRRELEVANT_PKGS: set[str] = {
+    "intel-microcode",
+    "amd64-microcode",
+    "linux-firmware",
+    "iucode-tool",         # Intel Microcode Update Tool
+}
+VM_IRRELEVANT_PREFIXES = ("firmware-",)   # z.B. firmware-linux, firmware-iwlwifi
+
+# Tags/Felder, die ein Asset als VM/Container kennzeichnen
+VM_TAGS = {
+    "vm", "virtual", "virtual-machine", "hypervisor-guest",
+    "kvm", "vmware", "virtualbox", "xen", "hyper-v",
+    "lxc", "container", "docker",
+}
+
+
+def _is_vm(asset: "Asset") -> bool:
+    """Gibt True zurück wenn das Asset erkennbar eine VM oder ein Container ist."""
+    tags = {t.lower() for t in (asset.tags or [])}
+    if tags & VM_TAGS:
+        return True
+    # Hersteller-/Modell-Feld als Fallback
+    for field in (asset.manufacturer, asset.model):
+        if field and any(v in field.lower() for v in ("vmware", "virtualbox", "qemu", "kvm", "xen", "hyper-v", "bochs")):
+            return True
+    return False
+
+
+def _is_vm_irrelevant_pkg(pkg_name: str) -> bool:
+    """Gibt True zurück wenn das Paket auf VMs keine Wirkung hat."""
+    name = pkg_name.lower()
+    if name in VM_IRRELEVANT_PKGS:
+        return True
+    return any(name.startswith(p) for p in VM_IRRELEVANT_PREFIXES)
+
 
 class AffectedAsset(BaseModel):
     asset_id: str
@@ -29,6 +66,7 @@ class AffectedAsset(BaseModel):
     risk_score: float
     risk_level: str
     open_ports: Optional[list]
+    note: Optional[str] = None   # z.B. "Nicht exploitierbar auf VMs"
 
 
 class ImpactReport(BaseModel):
@@ -141,7 +179,20 @@ async def get_cve_impact(
 
             if is_affected:
                 cvss = cve.cvss_score or 5.0
-                score = _calc_risk_score(cvss, asset.exposure_level, asset.open_ports)
+                note: Optional[str] = None
+
+                # VM-Check: Microcode/Firmware-CVEs sind auf VMs nicht exploitierbar
+                if _is_vm(asset) and _is_vm_irrelevant_pkg(entry.pkg_name):
+                    score = 0.1   # symbolisch niedrig, aber sichtbar
+                    risk = "LOW"
+                    note = (
+                        "Nicht exploitierbar auf VMs/Containern — "
+                        "Microcode wird vom Hypervisor-Host geladen, nicht vom Gast-OS."
+                    )
+                else:
+                    score = _calc_risk_score(cvss, asset.exposure_level, asset.open_ports)
+                    risk = _risk_level(score)
+
                 affected_assets.append(
                     AffectedAsset(
                         asset_id=str(asset.id),
@@ -151,8 +202,9 @@ async def get_cve_impact(
                         affected_package=entry.pkg_name,
                         package_version=entry.pkg_version,
                         risk_score=score,
-                        risk_level=_risk_level(score),
+                        risk_level=risk,
                         open_ports=asset.open_ports,
+                        note=note,
                     )
                 )
                 break  # pro Asset reicht ein Match
