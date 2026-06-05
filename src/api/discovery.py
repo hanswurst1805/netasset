@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
@@ -19,31 +19,102 @@ router = APIRouter()
 
 
 class DiscoveredDevice(BaseModel):
-    internal_id: Optional[str] = None
-    mac_address: Optional[str] = None
-    serial_number: Optional[str] = None
-    chassis_id: Optional[str] = None
-    hostname: Optional[str] = None
-    ip_address: Optional[str] = None
-    fqdn: Optional[str] = None
-    asset_type: str = "server"
-    os_name: Optional[str] = None
-    os_version: Optional[str] = None
-    manufacturer: Optional[str] = None
-    model: Optional[str] = None
-    exposure_level: str = "INTERN"
-    open_ports: Optional[list] = None
-    tags: Optional[list[str]] = None
-    source: str = "discovery"
+    """Ein von einem Collector gemeldetes Gerät zur Identity-Auflösung und Ingestion."""
+
+    internal_id: Optional[str] = Field(
+        None,
+        description="Interne UUID des Assets (falls bereits bekannt). Stärkster Match-Key (Konfidenz 1.0).",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    )
+    mac_address: Optional[str] = Field(
+        None,
+        description="MAC-Adresse des primären Netzwerk-Interfaces. Stable Key (Konfidenz 0.95).",
+        examples=["aa:bb:cc:dd:ee:ff"],
+    )
+    serial_number: Optional[str] = Field(
+        None,
+        description="Hardware-Seriennummer. Stable Key (Konfidenz 0.95).",
+        examples=["SN-123456789"],
+    )
+    chassis_id: Optional[str] = Field(
+        None,
+        description="System-UUID aus BIOS/DMI. Stable Key (Konfidenz 0.95). Entspricht osquery system_info.uuid.",
+        examples=["6ba7b810-9dad-11d1-80b4-00c04fd430c8"],
+    )
+    hostname: Optional[str] = Field(
+        None,
+        description="Hostname des Geräts. Soft Key (Konfidenz 0.80). Allein nicht ausreichend für MATCH.",
+        examples=["web-server-01"],
+    )
+    ip_address: Optional[str] = Field(
+        None,
+        description="Primäre IPv4-Adresse. Soft Key (Konfidenz 0.80).",
+        examples=["192.168.1.100"],
+    )
+    fqdn: Optional[str] = Field(
+        None,
+        description="Vollständiger Domainname. Soft Key (Konfidenz 0.80).",
+        examples=["web-server-01.example.com"],
+    )
+    asset_type: str = Field(
+        "server",
+        description="Gerätetyp. Erlaubte Werte: server, client, switch, router, firewall, printer, access-point.",
+        examples=["server"],
+    )
+    os_name: Optional[str] = Field(None, description="Name des Betriebssystems.", examples=["Ubuntu"])
+    os_version: Optional[str] = Field(None, description="OS-Version.", examples=["22.04"])
+    manufacturer: Optional[str] = Field(None, description="Gerätehersteller.", examples=["Dell"])
+    model: Optional[str] = Field(None, description="Gerätemodell.", examples=["PowerEdge R740"])
+    exposure_level: str = Field(
+        "INTERN",
+        description="Netzwerk-Exposition. Erlaubte Werte: INTERN, DMZ, EXTERN.",
+        examples=["INTERN"],
+    )
+    open_ports: Optional[list] = Field(
+        None,
+        description='Liste offener Ports. Wird additiv gemergt (nie überschrieben). Format: [{"port": 22, "proto": "tcp", "service": "ssh"}]',
+        examples=[[{"port": 22, "proto": "tcp", "service": "ssh"}]],
+    )
+    tags: Optional[list[str]] = Field(
+        None,
+        description="Tags zur Kategorisierung und Zugriffssteuerung. Werden additiv gemergt.",
+        examples=[["production", "os:linux"]],
+    )
+    source: str = Field(
+        "discovery",
+        description="Quell-Identifier des Collectors. Bestimmt Merge-Priorität (osquery=80, mikrotik=70, nmap=50, arp=30).",
+        examples=["osquery"],
+    )
 
 
 class IngestResult(BaseModel):
-    device_index: int
-    match_result: str
-    asset_id: Optional[str]
-    confidence: float
-    matched_on: list[str]
-    action: str  # created | merged | queued | skipped
+    """Ergebnis der Identity-Auflösung für ein einzelnes gemeldetes Gerät."""
+
+    device_index: int = Field(
+        description="0-basierter Index des Geräts im Eingabe-Array.",
+        examples=[0],
+    )
+    match_result: str = Field(
+        description="Ergebnis der Identity-Auflösung: NEW | MATCH | CONFLICT.",
+        examples=["NEW"],
+    )
+    asset_id: Optional[str] = Field(
+        None,
+        description="UUID des betroffenen Assets. Null bei CONFLICT ohne eindeutigen Kandidaten.",
+        examples=["550e8400-e29b-41d4-a716-446655440000"],
+    )
+    confidence: float = Field(
+        description="Match-Konfidenz (0.0–1.0).",
+        examples=[0.95],
+    )
+    matched_on: list[str] = Field(
+        description="Felder auf denen der Match basiert.",
+        examples=[["mac_address"]],
+    )
+    action: str = Field(
+        description="Durchgeführte Aktion: created | merged | queued | skipped.",
+        examples=["created"],
+    )
 
 
 @router.post("/ingest", response_model=list[IngestResult])

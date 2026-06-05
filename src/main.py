@@ -42,10 +42,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
+APP_VERSION = "1.0.0"
+API_VERSIONS = ["v1"]
+API_PREFIX = "/api/v1"
+
 app = FastAPI(
     title="DRUCKER API",
     description="Infrastructure Intelligence Platform",
-    version="1.0.0",
+    version=APP_VERSION,
+    docs_url=f"{API_PREFIX}/docs",
+    redoc_url=f"{API_PREFIX}/redoc",
+    openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
 )
 
@@ -77,4 +84,9 @@ app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discover
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "api_versions": API_VERSIONS,
+        "current_version": "v1",
+    }

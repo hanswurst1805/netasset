@@ -29,12 +29,17 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# Shared API helper (same directory as this script)
+import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
+from netasset_api import api_base  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("netasset-lynis")
+
 
 # ---------------------------------------------------------------------------
 # Standard-Report-Pfade je nach OS
@@ -94,7 +99,7 @@ def find_asset_id(api_url: str, api_key: str, timeout: int) -> str | None:
     except Exception:
         ip = None
 
-    base = api_url.rstrip("/") + "/api/v1/assets"
+    base = api_base(api_url) + "/assets"
     headers = {"X-API-Key": api_key}
 
     # Erst per Hostname suchen
@@ -162,7 +167,7 @@ def upload_report(report_path: Path, asset_id: str, api_url: str, api_key: str, 
     import email.mime.base
     import email.encoders
 
-    url = f"{api_url.rstrip('/')}/api/v1/reports/assets/{asset_id}"
+    url = f"{api_base(api_url)}/reports/assets/{asset_id}"
     filename = report_path.name
 
     # Multipart-Body manuell bauen (kein requests verfügbar)

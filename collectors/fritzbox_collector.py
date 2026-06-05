@@ -30,12 +30,17 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# Shared API helper (same directory as this script)
+import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
+from netasset_api import api_base  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("netasset-fritzbox")
+
 
 # ---------------------------------------------------------------------------
 # fritzconnection prüfen
@@ -221,7 +226,7 @@ def api_post(url: str, api_key: str, data, timeout: int = 30):
 
 
 def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = False):
-    base = config["api_url"].rstrip("/")
+    base = api_base(config["api_url"])
     device = data["device"]
     neighbors = data["neighbors"]
 
@@ -244,7 +249,7 @@ def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = 
         return
 
     # Fritz!Box als Asset
-    result = api_post(f"{base}/api/v1/discovery/ingest", config["api_key"], [device], config["timeout"])
+    result = api_post(f"{base}/discovery/ingest", config["api_key"], [device], config["timeout"])
     action = result[0].get("action") if result else "?"
     log.info("Fritz!Box Asset: %s", action)
 
@@ -285,7 +290,7 @@ def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = 
         created = merged = flagged = 0
         for i in range(0, len(neighbor_devices), 50):
             res = api_post(
-                f"{base}/api/v1/discovery/ingest",
+                f"{base}/discovery/ingest",
                 config["api_key"],
                 neighbor_devices[i:i+50],
                 config["timeout"],

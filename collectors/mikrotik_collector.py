@@ -39,12 +39,17 @@ import urllib.request
 import base64
 from pathlib import Path
 
+# Shared API helper (same directory as this script)
+import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
+from netasset_api import api_base  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("netasset-mikrotik")
+
 
 # ---------------------------------------------------------------------------
 # Konfiguration
@@ -564,7 +569,7 @@ def api_post(url: str, api_key: str, data, timeout: int = 30):
 
 
 def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = False):
-    base = config["api_url"].rstrip("/")
+    base = api_base(config["api_url"])
     device = data["device"]
     neighbors = data.get("neighbors", [])
 
@@ -591,7 +596,7 @@ def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = 
         return
 
     # MikroTik selbst
-    result = api_post(f"{base}/api/v1/discovery/ingest", config["api_key"], [device], config["timeout"])
+    result = api_post(f"{base}/discovery/ingest", config["api_key"], [device], config["timeout"])
     action = result[0].get("action") if result else "?"
     log.info("MikroTik-Asset: %s (%s)", device.get("hostname"), action)
 
@@ -618,7 +623,7 @@ def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = 
         created = merged = flagged = 0
         for i in range(0, len(neighbor_devices), 50):
             batch = neighbor_devices[i:i+50]
-            res = api_post(f"{base}/api/v1/discovery/ingest", config["api_key"], batch, config["timeout"])
+            res = api_post(f"{base}/discovery/ingest", config["api_key"], batch, config["timeout"])
             for item in (res or []):
                 a = item.get("action", "")
                 if a == "created": created += 1
