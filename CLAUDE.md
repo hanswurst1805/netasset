@@ -118,7 +118,7 @@ netasset/
 │           ├── ReportViewer.tsx     ← Lynis-Report mit Score-Ring
 │           ├── LastSeen.tsx         ← "vor X Stunden" Anzeige
 │           └── Badge.tsx / Layout.tsx
-├── collectors/
+├── collectors/    ← separates Repo: github.com/hanswurst1805/drucker-collectors
 │   ├── netasset_collector.py      ← osquery: Linux/Windows/macOS
 │   ├── mikrotik_collector.py      ← MikroTik REST API + SNMP
 │   ├── fritzbox_collector.py      ← Fritz!Box TR-064
