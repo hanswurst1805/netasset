@@ -37,6 +37,9 @@ from pathlib import Path
 import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
 from netasset_api import api_base  # noqa: E402
 
+# API versions this collector supports (newest first)
+SUPPORTED_VERSIONS = ["v1"]
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -456,7 +459,7 @@ def api_request(url: str, api_key: str, data: dict, timeout: int = 30) -> dict:
 
 def push_asset(config: dict, device: dict) -> str | None:
     """Sendet Asset an /discovery/ingest. Gibt asset_id zurück."""
-    url = api_base(config["api_url"]) + "/discovery/ingest"
+    url = api_base(config["api_url"], SUPPORTED_VERSIONS) + "/discovery/ingest"
     result = api_request(url, config["api_key"], [device], config["timeout"])
     if result and isinstance(result, list):
         item = result[0]
@@ -471,7 +474,7 @@ def push_sbom(config: dict, asset_id: str, packages: list[dict]) -> None:
     """Sendet SBOM-Einträge an /sbom/assets/{id}/sbom."""
     if not packages:
         return
-    url = api_base(config["api_url"]) + f"/sbom/assets/{asset_id}/sbom"
+    url = api_base(config["api_url"], SUPPORTED_VERSIONS) + f"/sbom/assets/{asset_id}/sbom"
     # In Batches von 200
     for i in range(0, len(packages), 200):
         batch = packages[i:i+200]

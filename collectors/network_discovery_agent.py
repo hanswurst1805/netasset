@@ -44,6 +44,9 @@ from pathlib import Path
 import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
 from netasset_api import api_base  # noqa: E402
 
+# API versions this collector supports (newest first)
+SUPPORTED_VERSIONS = ["v1"]
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -321,7 +324,7 @@ def api_request(url: str, api_key: str, data, timeout: int = 30):
 
 def push_hosts(config: dict, hosts: list[dict]) -> dict:
     """Sendet alle Hosts an /discovery/ingest."""
-    url = api_base(config["api_url"]) + "/discovery/ingest"
+    url = api_base(config["api_url"], SUPPORTED_VERSIONS) + "/discovery/ingest"
 
     devices = []
     for h in hosts:

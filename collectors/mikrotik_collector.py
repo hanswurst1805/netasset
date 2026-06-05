@@ -43,6 +43,9 @@ from pathlib import Path
 import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
 from netasset_api import api_base  # noqa: E402
 
+# API versions this collector supports (newest first)
+SUPPORTED_VERSIONS = ["v1"]
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -569,7 +572,7 @@ def api_post(url: str, api_key: str, data, timeout: int = 30):
 
 
 def push(config: dict, data: dict, push_neighbors: bool = True, dry_run: bool = False):
-    base = api_base(config["api_url"])
+    base = api_base(config["api_url"], SUPPORTED_VERSIONS)
     device = data["device"]
     neighbors = data.get("neighbors", [])
 
