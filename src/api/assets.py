@@ -159,7 +159,7 @@ async def bulk_delete_assets(
     from sqlalchemy import or_
     conditions = []
     if body.last_seen_before_days is not None:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=body.last_seen_before_days)
+        cutoff = datetime.utcnow() - timedelta(days=body.last_seen_before_days)
         conditions.append(
             or_(
                 Asset.last_seen_at < cutoff,
