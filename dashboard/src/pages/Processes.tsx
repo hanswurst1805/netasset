@@ -399,7 +399,7 @@ function ProcessRow({ process }: { process: any }) {
           <div className="flex items-center gap-3 px-4 pt-3 pb-0">
             <div className="flex gap-1">
               {[
-                { id: 'obashi', icon: Layers, label: 'OBASHI' },
+                { id: 'obashi', icon: Layers, label: 'BASIS' },
                 { id: 'apps', icon: Settings2, label: 'Anwendungen' },
                 { id: 'risk', icon: BarChart2, label: 'CVE-Risiko' },
               ].map(({ id, icon: Icon, label }) => (
@@ -517,7 +517,7 @@ export default function Processes() {
         <div>
           <h1 className="text-2xl font-bold">Business-Prozesse</h1>
           <p className="text-sm text-gray-500 mt-1">
-            O → B → A → S → H → I
+            B → A → S → I → S
           </p>
         </div>
         <button
