@@ -97,6 +97,7 @@ function BulkDeletePanel({ allTags }: { allTags: string[] }) {
             <div className="flex gap-2 flex-wrap">
               {[
                 { label: 'Egal', value: '' },
+                { label: '> 4 Tage', value: '4' },
                 { label: '> 7 Tage', value: '7' },
                 { label: '> 30 Tage', value: '30' },
                 { label: '> 90 Tage', value: '90' },
