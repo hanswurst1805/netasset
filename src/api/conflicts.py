@@ -183,3 +183,17 @@ async def resolve_discard(
     entry.resolved_at = datetime.utcnow()
     await session.flush()
     return {"status": "discarded"}
+
+
+@router.delete("/{conflict_id}", status_code=204)
+async def delete_conflict(
+    conflict_id: uuid.UUID,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Conflict-Eintrag dauerhaft aus der DB löschen."""
+    entry = await session.get(ConflictQueueEntry, conflict_id)
+    if not entry:
+        raise HTTPException(404, "Conflict nicht gefunden")
+    await session.delete(entry)
+    await session.flush()

@@ -75,6 +75,7 @@ function ConflictRow({ conflict }: { conflict: Conflict }) {
   const [open, setOpen] = useState(false)
   const [mergeAssetId, setMergeAssetId] = useState(conflict.candidate_asset_id ?? '')
   const [error, setError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const mutOpts = {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['conflicts'] }); qc.invalidateQueries({ queryKey: ['conflict-stats'] }) },
@@ -84,29 +85,58 @@ function ConflictRow({ conflict }: { conflict: Conflict }) {
   const merge   = useMutation({ mutationFn: () => apiFetch(`/${conflict.id}/merge?asset_id=${mergeAssetId}`, { method: 'POST' }), ...mutOpts })
   const create  = useMutation({ mutationFn: () => apiFetch(`/${conflict.id}/create`, { method: 'POST' }), ...mutOpts })
   const discard = useMutation({ mutationFn: () => apiFetch(`/${conflict.id}/discard`, { method: 'POST' }), ...mutOpts })
+  const del     = useMutation({ mutationFn: () => apiFetch(`/${conflict.id}`, { method: 'DELETE' }), ...mutOpts })
 
   const inc = conflict.incoming_data
   const label = inc.hostname || inc.ip_address || inc.mac_address || '(unbekannt)'
 
   return (
     <div className="bg-gray-900 border border-yellow-800/60 rounded-lg overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors text-left"
-      >
-        <AlertTriangle size={14} className="text-yellow-500 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="font-medium text-sm">{label}</span>
-          <span className="text-xs text-gray-500 ml-3">
-            Quelle: {conflict.source ?? '?'} · Konfidenz: {(conflict.confidence * 100).toFixed(0)}% ·
-            Match auf: {conflict.matched_on.join(', ')}
+      <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-800 transition-colors">
+        <button onClick={() => setOpen(!open)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+          <AlertTriangle size={14} className="text-yellow-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-medium text-sm">{label}</span>
+            <span className="text-xs text-gray-500 ml-3">
+              Quelle: {conflict.source ?? '?'} · Konfidenz: {(conflict.confidence * 100).toFixed(0)}% ·
+              Match auf: {conflict.matched_on.join(', ')}
+            </span>
+          </div>
+          <span className="text-xs text-gray-600 shrink-0">
+            {new Date(conflict.created_at).toLocaleString('de')}
           </span>
+          {open ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+        </button>
+
+        {/* Löschen-Button */}
+        <div className="shrink-0 flex items-center gap-1 ml-2">
+          {confirmDelete ? (
+            <>
+              <button
+                onClick={() => del.mutate()}
+                disabled={del.isPending}
+                className="text-xs bg-red-700 hover:bg-red-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
+              >
+                {del.isPending ? '…' : 'Ja'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs text-gray-500 hover:text-gray-300 px-1"
+              >
+                Nein
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
+              className="text-gray-600 hover:text-red-400 transition-colors p-1 rounded"
+              title="Eintrag löschen"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
-        <span className="text-xs text-gray-600">
-          {new Date(conflict.created_at).toLocaleString('de')}
-        </span>
-        {open ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-gray-800 p-4 space-y-4">
