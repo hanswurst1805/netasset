@@ -173,6 +173,15 @@ export const api = {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
       }),
+    bulkDelete: (filter: {
+      last_seen_before_days?: number | null
+      never_seen?: boolean
+      tags?: string[]
+      dry_run: boolean
+    }) => req<{ matched: number; deleted: number; dry_run: boolean }>(
+      '/assets/bulk-delete',
+      { method: 'POST', body: JSON.stringify(filter) }
+    ),
   },
   sbom: {
     get: (assetId: string) => req<SBOMEntry[]>(`/sbom/assets/${assetId}/sbom`),

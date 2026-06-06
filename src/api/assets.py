@@ -1,12 +1,13 @@
 """Asset CRUD – FastAPI Router."""
+from __future__ import annotations
 
 import uuid
 from typing import Optional
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
@@ -204,3 +205,76 @@ async def deactivate_asset(
             raise HTTPException(403, "Kein Zugriff auf dieses Asset")
     asset.is_active = False
     await session.flush()
+
+
+# ---------------------------------------------------------------------------
+# Bulk-Delete
+# ---------------------------------------------------------------------------
+
+class BulkDeleteFilter(BaseModel):
+    """Filter-Kriterien für Bulk-Löschung (alle Bedingungen werden per AND verknüpft)."""
+    last_seen_before_days: Optional[int] = None   # nie aktualisiert seit N Tagen
+    never_seen: bool = False                       # last_seen_at IS NULL
+    tags: Optional[list[str]] = None              # hat mindestens einen dieser Tags
+    dry_run: bool = True                          # Standard: nur zählen, nicht löschen
+
+
+class BulkDeleteResult(BaseModel):
+    matched: int
+    deleted: int
+    dry_run: bool
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResult)
+async def bulk_delete_assets(
+    body: BulkDeleteFilter,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Löscht (deaktiviert) Assets anhand von Filterkriterien."""
+    # Nur Admins dürfen bulk-löschen
+    if ctx.role != "admin":
+        raise HTTPException(403, "Nur Admins dürfen Assets in Bulk löschen")
+
+    # Mindestens ein Kriterium muss gesetzt sein
+    if not body.last_seen_before_days and not body.never_seen and not body.tags:
+        raise HTTPException(400, "Mindestens ein Filterkriterium erforderlich")
+
+    stmt = select(Asset).where(Asset.is_active == True)  # noqa: E712
+
+    # Tag-basierter Zugriff des eingeloggten Users
+    if allowed := ctx.filter_tags():
+        stmt = stmt.where(Asset.tags.overlap(allowed))
+
+    # Filterkriterien
+    conditions = []
+    if body.last_seen_before_days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=body.last_seen_before_days)
+        from sqlalchemy import or_, and_
+        conditions.append(
+            or_(
+                Asset.last_seen_at < cutoff,
+                Asset.last_seen_at.is_(None),
+            ) if body.never_seen else Asset.last_seen_at < cutoff
+        )
+    if body.never_seen and not body.last_seen_before_days:
+        conditions.append(Asset.last_seen_at.is_(None))
+
+    if body.tags:
+        stmt = stmt.where(Asset.tags.overlap(body.tags))
+
+    for cond in conditions:
+        stmt = stmt.where(cond)
+
+    result = await session.execute(stmt)
+    assets = result.scalars().all()
+    matched = len(assets)
+
+    if body.dry_run:
+        return BulkDeleteResult(matched=matched, deleted=0, dry_run=True)
+
+    for asset in assets:
+        asset.is_active = False
+    await session.flush()
+
+    return BulkDeleteResult(matched=matched, deleted=matched, dry_run=False)
