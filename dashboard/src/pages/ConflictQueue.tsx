@@ -193,11 +193,24 @@ function ConflictRow({ conflict }: { conflict: Conflict }) {
 }
 
 export default function ConflictQueue() {
+  const qc = useQueryClient()
+  const isAdmin = localStorage.getItem('role') === 'admin'
   const [statusFilter, setStatusFilter] = useState('pending')
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
+
   const { data: conflicts = [], isLoading } = useQuery({
     queryKey: ['conflicts', statusFilter],
     queryFn: () => apiFetch(`?status=${statusFilter}`),
     refetchInterval: 30_000,
+  })
+
+  const deleteAll = useMutation({
+    mutationFn: () => apiFetch(`?status=${statusFilter}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conflicts'] })
+      qc.invalidateQueries({ queryKey: ['conflict-stats'] })
+      setConfirmDeleteAll(false)
+    },
   })
 
   return (
@@ -212,16 +225,45 @@ export default function ConflictQueue() {
             Geräte die nicht eindeutig zugeordnet werden konnten — bitte manuell prüfen
           </p>
         </div>
-        <select
-          className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-        >
-          <option value="pending">Offen</option>
-          <option value="merged">Zusammengeführt</option>
-          <option value="created">Neu angelegt</option>
-          <option value="discarded">Verworfen</option>
-        </select>
+        <div className="flex items-center gap-3">
+          {isAdmin && conflicts.length > 0 && (
+            confirmDeleteAll ? (
+              <div className="flex items-center gap-2 bg-red-950 border border-red-800 rounded-lg px-3 py-1.5">
+                <span className="text-xs text-red-300">Alle {conflicts.length} löschen?</span>
+                <button
+                  onClick={() => deleteAll.mutate()}
+                  disabled={deleteAll.isPending}
+                  className="text-xs bg-red-700 hover:bg-red-600 text-white px-2 py-0.5 rounded disabled:opacity-50"
+                >
+                  {deleteAll.isPending ? '…' : 'Ja'}
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteAll(false)}
+                  className="text-xs text-gray-400 hover:text-gray-200"
+                >
+                  Nein
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDeleteAll(true)}
+                className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-red-900 border border-gray-700 hover:border-red-700 text-gray-400 hover:text-red-300 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Trash2 size={13} /> Alle löschen
+              </button>
+            )
+          )}
+          <select
+            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none"
+            value={statusFilter}
+            onChange={e => { setStatusFilter(e.target.value); setConfirmDeleteAll(false) }}
+          >
+            <option value="pending">Offen</option>
+            <option value="merged">Zusammengeführt</option>
+            <option value="created">Neu angelegt</option>
+            <option value="discarded">Verworfen</option>
+          </select>
+        </div>
       </div>
 
       {isLoading && <div className="text-gray-500">Laden…</div>}

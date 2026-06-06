@@ -185,6 +185,23 @@ async def resolve_discard(
     return {"status": "discarded"}
 
 
+@router.delete("", status_code=204)
+async def delete_all_conflicts(
+    status: str | None = None,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Alle (oder gefilterte) Conflict-Einträge dauerhaft löschen. Nur Admins."""
+    if ctx.role != "admin":
+        raise HTTPException(403, "Nur Admins dürfen alle Konflikte löschen")
+    from sqlalchemy import delete as sql_delete
+    stmt = sql_delete(ConflictQueueEntry)
+    if status:
+        stmt = stmt.where(ConflictQueueEntry.status == status)
+    await session.execute(stmt)
+    await session.flush()
+
+
 @router.delete("/{conflict_id}", status_code=204)
 async def delete_conflict(
     conflict_id: uuid.UUID,
