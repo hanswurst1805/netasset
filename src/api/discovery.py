@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
-from src.core.identity import DeviceFingerprint, IdentityResolver, MatchResult
+from src.core.identity import ENRICHMENT_SOURCES, DeviceFingerprint, IdentityResolver, MatchResult
 from src.core.network_classifier import classify_asset_and_update
 from src.models.all_models import Asset, ConflictQueueEntry
 
@@ -76,8 +76,23 @@ async def ingest_devices(
             fqdn=device.fqdn,
         )
 
-        identity = await resolver.resolve(fp)
+        identity = await resolver.resolve(fp, source=device.source)
         action = "queued"
+
+        # Enrichment-Quellen legen keine neuen Assets an
+        is_enrichment = device.source in ENRICHMENT_SOURCES
+        if (identity.result == MatchResult.NEW
+                and is_enrichment
+                and any(s.startswith("skip:") for s in identity.matched_on)):
+            results.append(IngestResult(
+                device_index=idx,
+                match_result="NEW",
+                asset_id=None,
+                confidence=0.0,
+                matched_on=identity.matched_on,
+                action="skipped",
+            ))
+            continue
 
         if identity.result == MatchResult.MATCH and identity.asset_id:
             # Konfidenz-Check: Asset kann Mindest-Konfidenz setzen

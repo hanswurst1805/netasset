@@ -1,19 +1,31 @@
 """
 Identity Resolver – stabiles Geräte-Matching.
 
-Priorität:
-  1. internal UUID (wenn mitgeliefert)
-  2. Stable Keys: mac_address, serial_number, chassis_id
-  3. Soft Keys: hostname + ip kombiniert (≥2 Treffer → Kandidat)
+Matching-Strategie (nach Quell-Typ):
+
+  AGENTEN (osquery, mikrotik-collector, fritzbox-collector, snmp):
+    1. UUID                          → MATCH  1.00
+    2. 1 Stable Key (MAC/Serial/…)   → MATCH  0.95
+    3. ≥2 beliebige Felder           → MATCH  0.80
+    4. 1 Soft Key                    → CONFLICT 0.40
+
+  ENRICHMENT-QUELLEN (nmap, arp, fritzbox-hosts, mikrotik-arp, lldp, wlan):
+    Liefern nur Ergänzungsdaten – kein Überschreiben, keine neuen Assets.
+    1. UUID                          → MATCH  1.00
+    2. 1 Stable Key (MAC/Serial/…)   → MATCH  0.95
+    3. ≥2 beliebige Felder           → MATCH  0.80
+    4. 1 Soft Key                    → MATCH  0.50  (kein CONFLICT!)
+    5. Kein Treffer                  → SKIP   (kein neues Asset)
 
 Ergebnis:
   - MATCH   → vorhandenes Asset gefunden, Daten mergen
-  - CONFLICT → mehrdeutiger Treffer, in Conflict Queue
-  - NEW      → kein Treffer, neues Asset anlegen
+  - CONFLICT → mehrdeutiger Treffer, in Conflict Queue (nur bei Agenten)
+  - NEW      → kein Treffer, neues Asset anlegen (nur bei Agenten)
+  - SKIP     → kein Treffer bei Enrichment-Quelle → ignorieren
 
 Merge-Strategie:
   - Prioritätsbasiert: höhere Quelle überschreibt niedrigere
-  - open_ports: additive (Union aller gemeldeten Ports)
+  - open_ports: additiv (Union aller gemeldeten Ports)
   - tags: immer additiv
   - sources: Protokoll aller Quellen mit Zeitstempel + gemeldete Felder
 """
@@ -123,18 +135,40 @@ class DeviceFingerprint:
 
 
 # ---------------------------------------------------------------------------
+# Quell-Klassifizierung
+# ---------------------------------------------------------------------------
+
+# Enrichment-Quellen liefern nur Ergänzungsdaten.
+# Sie überschreiben keine hochprioritären Felder, legen keine neuen Assets an
+# und erzeugen keinen CONFLICT-Eintrag – stattdessen wird bei einem einzigen
+# Soft-Key-Treffer direkt gemergt (confidence 0.50).
+ENRICHMENT_SOURCES: set[str] = {
+    "nmap-discovery",
+    "mikrotik-arp",
+    "fritzbox-hosts",
+    "arp-discovered",
+    "lldp",
+    "wlan",
+}
+
+# Alle Keys, die für das Matching herangezogen werden
+STABLE_KEYS = ["mac_address", "serial_number", "chassis_id"]
+SOFT_KEYS   = ["hostname", "ip_address", "fqdn"]
+ALL_MATCH_KEYS = STABLE_KEYS + SOFT_KEYS
+
+
+# ---------------------------------------------------------------------------
 # Identity Resolver
 # ---------------------------------------------------------------------------
 
 class IdentityResolver:
-    STABLE_KEYS    = ["mac_address", "serial_number", "chassis_id"]
-    SOFT_KEYS      = ["hostname", "ip_address", "fqdn"]
-    SOFT_THRESHOLD = 2
 
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def resolve(self, fp: DeviceFingerprint) -> IdentityResult:
+    async def resolve(self, fp: DeviceFingerprint, source: str = "default") -> IdentityResult:
+        is_enrichment = source in ENRICHMENT_SOURCES
+
         # 1. Direkt per UUID
         if fp.internal_id:
             try:
@@ -150,57 +184,77 @@ class IdentityResolver:
             except ValueError:
                 pass
 
-        # 2. Stable Keys
-        for key in self.STABLE_KEYS:
-            value = getattr(fp, key)
+        # 2. Alle Keys gemeinsam auswerten – zählt Treffer pro Kandidat
+        #    Stable und Soft Keys fließen in dieselbe Auswertung.
+        field_matches: dict[uuid.UUID, list[str]] = {}
+        for key in ALL_MATCH_KEYS:
+            value = getattr(fp, key, None)
             if not value:
                 continue
             asset = await self._find_by_field(key, value)
             if asset:
-                return IdentityResult(
-                    result=MatchResult.MATCH,
-                    asset_id=asset.id,
-                    confidence=0.95,
-                    matched_on=[key],
-                )
+                field_matches.setdefault(asset.id, []).append(key)
 
-        # 3. Soft Keys
-        soft_matches: dict[uuid.UUID, list[str]] = {}
-        for key in self.SOFT_KEYS:
-            value = getattr(fp, key)
-            if not value:
-                continue
-            asset = await self._find_by_field(key, value)
-            if asset:
-                soft_matches.setdefault(asset.id, []).append(key)
+        # Kein Treffer
+        if not field_matches:
+            if is_enrichment:
+                # Enrichment-Quellen legen keine neuen Assets an
+                return IdentityResult(result=MatchResult.NEW, confidence=0.0,
+                                      matched_on=["skip:no-match"])
+            return IdentityResult(result=MatchResult.NEW, confidence=0.0)
 
-        if soft_matches:
-            strong = {aid: keys for aid, keys in soft_matches.items()
-                      if len(keys) >= self.SOFT_THRESHOLD}
-            if len(strong) == 1:
-                asset_id, matched_keys = next(iter(strong.items()))
-                return IdentityResult(
-                    result=MatchResult.MATCH,
-                    asset_id=asset_id,
-                    confidence=0.80,
-                    matched_on=matched_keys,
-                )
-            if len(soft_matches) > 1:
-                return IdentityResult(
-                    result=MatchResult.CONFLICT,
-                    confidence=0.5,
-                    matched_on=list({k for keys in soft_matches.values() for k in keys}),
-                )
-            if len(soft_matches) == 1:
-                asset_id, matched_keys = next(iter(soft_matches.items()))
-                return IdentityResult(
-                    result=MatchResult.CONFLICT,
-                    asset_id=asset_id,
-                    confidence=0.4,
-                    matched_on=matched_keys,
-                )
+        # Mehrere verschiedene Assets getroffen → echter Konflikt
+        if len(field_matches) > 1:
+            if is_enrichment:
+                # Enrichment-Quellen bei echtem Konflikt lieber skippen
+                return IdentityResult(result=MatchResult.NEW, confidence=0.0,
+                                      matched_on=["skip:ambiguous"])
+            return IdentityResult(
+                result=MatchResult.CONFLICT,
+                confidence=0.5,
+                matched_on=list({k for keys in field_matches.values() for k in keys}),
+            )
 
-        return IdentityResult(result=MatchResult.NEW, confidence=0.0)
+        # Genau ein Kandidat
+        asset_id, matched_keys = next(iter(field_matches.items()))
+        has_stable  = any(k in STABLE_KEYS for k in matched_keys)
+        match_count = len(matched_keys)
+
+        # ≥1 Stable Key → sehr sicherer Treffer
+        if has_stable:
+            return IdentityResult(
+                result=MatchResult.MATCH,
+                asset_id=asset_id,
+                confidence=0.95,
+                matched_on=matched_keys,
+            )
+
+        # ≥2 beliebige Keys → sicherer Treffer
+        if match_count >= 2:
+            return IdentityResult(
+                result=MatchResult.MATCH,
+                asset_id=asset_id,
+                confidence=0.80,
+                matched_on=matched_keys,
+            )
+
+        # Genau 1 Soft Key
+        if is_enrichment:
+            # Enrichment-Quelle: mergen mit niedrigerer Konfidenz, kein Conflict
+            return IdentityResult(
+                result=MatchResult.MATCH,
+                asset_id=asset_id,
+                confidence=0.50,
+                matched_on=matched_keys,
+            )
+
+        # Agent mit nur 1 Soft Key → Operator entscheiden lassen
+        return IdentityResult(
+            result=MatchResult.CONFLICT,
+            asset_id=asset_id,
+            confidence=0.40,
+            matched_on=matched_keys,
+        )
 
     async def _find_by_field(self, field: str, value: str) -> Optional[Asset]:
         stmt = select(Asset).where(
