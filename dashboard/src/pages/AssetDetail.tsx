@@ -337,6 +337,7 @@ export default function AssetDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [osvResult, setOsvResult] = useState<any>(null)
   const [osvLoading, setOsvLoading] = useState(false)
+  const [osvShow, setOsvShow] = useState<'packages' | 'cves' | null>(null)
 
   async function runOsvScan() {
     setOsvLoading(true)
@@ -491,22 +492,100 @@ export default function AssetDetail() {
 
       {/* OSV-Scan Ergebnis */}
       {osvResult && (
-        <div className={`mb-4 rounded-lg border px-4 py-3 text-sm flex items-center justify-between ${
+        <div className={`mb-4 rounded-lg border text-sm ${
           osvResult.error ? 'bg-red-950 border-red-800 text-red-300' :
           osvResult.vulns_found > 0 ? 'bg-yellow-950 border-yellow-800 text-yellow-300' :
           'bg-green-950 border-green-800 text-green-300'
         }`}>
-          {osvResult.error ? (
-            <span>Fehler: {osvResult.error}</span>
-          ) : (
-            <span>
-              <ShieldCheck size={14} className="inline mr-1" />
-              OSV-Scan: <strong>{osvResult.scanned}</strong> Pakete geprüft,{' '}
-              <strong>{osvResult.vulns_found}</strong> Schwachstellen,{' '}
-              <strong>{osvResult.new_cves}</strong> neue CVEs
-            </span>
+          <div className="flex items-center justify-between px-4 py-3">
+            {osvResult.error ? (
+              <span>Fehler: {osvResult.error}</span>
+            ) : (
+              <span className="flex items-center gap-1 flex-wrap">
+                <ShieldCheck size={14} className="inline" />
+                OSV-Scan:{' '}
+                <button
+                  onClick={() => setOsvShow(osvShow === 'packages' ? null : 'packages')}
+                  className="font-bold underline underline-offset-2 hover:opacity-70"
+                >
+                  {osvResult.scanned} Pakete geprüft
+                </button>
+                ,{' '}
+                <button
+                  onClick={() => setOsvShow(osvShow === 'cves' ? null : 'cves')}
+                  className="font-bold underline underline-offset-2 hover:opacity-70"
+                >
+                  {osvResult.vulns_found} Schwachstellen
+                </button>
+                ,{' '}
+                <button
+                  onClick={() => setOsvShow(osvShow === 'cves' ? null : 'cves')}
+                  className="font-bold underline underline-offset-2 hover:opacity-70"
+                >
+                  {osvResult.new_cves} neue CVEs
+                </button>
+              </span>
+            )}
+            <button onClick={() => { setOsvResult(null); setOsvShow(null) }} className="text-xs opacity-60 hover:opacity-100 ml-3 shrink-0">×</button>
+          </div>
+
+          {/* Pakete-Detail */}
+          {osvShow === 'packages' && osvResult.packages?.length > 0 && (
+            <div className="border-t border-current/20 px-4 pb-3">
+              <div className="text-xs font-semibold opacity-70 uppercase tracking-wider mt-2 mb-1">Geprüfte Pakete ({osvResult.packages.length})</div>
+              <div className="max-h-48 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="opacity-60">
+                      <th className="text-left py-1 pr-4">Paket</th>
+                      <th className="text-left py-1 pr-4">Version</th>
+                      <th className="text-left py-1">Ökosystem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {osvResult.packages.map((p: any, i: number) => (
+                      <tr key={i} className="border-t border-current/10">
+                        <td className="py-0.5 pr-4 font-mono">{p.name}</td>
+                        <td className="py-0.5 pr-4 opacity-70">{p.version}</td>
+                        <td className="py-0.5 opacity-60">{p.ecosystem}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
-          <button onClick={() => setOsvResult(null)} className="text-xs opacity-60 hover:opacity-100">×</button>
+
+          {/* CVE-Detail */}
+          {osvShow === 'cves' && osvResult.cves?.length > 0 && (
+            <div className="border-t border-current/20 px-4 pb-3">
+              <div className="text-xs font-semibold opacity-70 uppercase tracking-wider mt-2 mb-1">Gefundene CVEs ({osvResult.cves.length})</div>
+              <div className="max-h-64 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="opacity-60">
+                      <th className="text-left py-1 pr-3">CVE</th>
+                      <th className="text-left py-1 pr-3">Paket</th>
+                      <th className="text-left py-1 pr-3">Version</th>
+                      <th className="text-left py-1 pr-3">Risiko</th>
+                      <th className="text-left py-1">Beschreibung</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {osvResult.cves.map((c: any, i: number) => (
+                      <tr key={i} className="border-t border-current/10">
+                        <td className="py-0.5 pr-3 font-mono whitespace-nowrap">{c.cve_id}</td>
+                        <td className="py-0.5 pr-3 font-mono">{c.pkg_name}</td>
+                        <td className="py-0.5 pr-3 opacity-70">{c.pkg_version}</td>
+                        <td className="py-0.5 pr-3 font-semibold whitespace-nowrap">{c.risk_level} {c.cvss ? `(${c.cvss})` : ''}</td>
+                        <td className="py-0.5 opacity-70 truncate max-w-xs">{c.description}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

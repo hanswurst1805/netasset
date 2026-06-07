@@ -222,6 +222,7 @@ async def scan_asset_osv(
     new_cves = 0
     vulns_found = 0
     EXPOSURE_FACTOR = {"EXTERN": 1.5, "DMZ": 1.2, "INTERN": 1.0}
+    found_cves: list[dict] = []   # für die Rückgabe
 
     is_ubuntu = "ubuntu" in os_name.lower()
 
@@ -286,7 +287,6 @@ async def scan_asset_osv(
             )
 
             # CVEImpact anlegen / aktualisieren
-            from sqlalchemy import and_
             existing_impact = (await session.execute(
                 select(CVEImpact).where(
                     CVEImpact.cve_id == cve_id,
@@ -310,16 +310,32 @@ async def scan_asset_osv(
                     reasoning=f"OSV-Scan: {vuln_id} betrifft {entry.pkg_name} {entry.pkg_version}",
                 ))
 
+            found_cves.append({
+                "cve_id":      cve_id,
+                "pkg_name":    entry.pkg_name,
+                "pkg_version": entry.pkg_version,
+                "risk_level":  risk_level,
+                "risk_score":  risk_score,
+                "cvss":        existing_cve.cvss_score,
+                "description": (existing_cve.description or "")[:120],
+                "is_new":      new_cves > 0 and cve_id not in {c["cve_id"] for c in found_cves},
+            })
+
     await session.flush()
     log.info(
         "OSV-Scan fertig: %s — %d Pakete, %d Schwachstellen, %d neue CVEs",
         asset.hostname or asset_id, len(pkg_list), vulns_found, new_cves,
     )
+    # Nach Risiko sortieren
+    found_cves.sort(key=lambda c: c["risk_score"] or 0, reverse=True)
+
     return {
-        "asset": asset.hostname or asset_id,
-        "scanned": len(pkg_list),
+        "asset":      asset.hostname or asset_id,
+        "scanned":    len(pkg_list),
         "vulns_found": vulns_found,
-        "new_cves": new_cves,
+        "new_cves":   new_cves,
+        "packages":   [{"name": p["name"], "version": p["version"], "ecosystem": p["ecosystem"]} for p in pkg_list],
+        "cves":       found_cves,
     }
 
 
