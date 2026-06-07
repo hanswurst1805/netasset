@@ -67,6 +67,7 @@ PRIORITY_FIELDS = [
     "hostname", "ip_address", "fqdn", "mac_address",
     "os_name", "os_version", "os_arch",
     "manufacturer", "model", "firmware_version",
+    "asset_type",   # VM-Erkennung: osquery setzt "vm" wenn Hypervisor erkannt
     "exposure_level", "rack_id", "rack_unit", "location",
 ]
 
@@ -313,7 +314,12 @@ class IdentityResolver:
 
             # Dynamische Tags die der Collector vollständig kontrolliert:
             # Diese werden ENTFERNT und durch die neuen Werte ersetzt
-            DYNAMIC_PREFIXES = ("updates:", "security-updates:", "reboot-required", "os:")
+            DYNAMIC_PREFIXES = (
+                "updates:", "security-updates:", "reboot-required", "os:",
+                # VM-Erkennung: wird bei jedem osquery-Lauf neu gesetzt
+                "vm", "kvm", "vmware", "virtualbox", "xen", "hyper-v",
+                "parallels", "bhyve", "lxc", "docker", "aws-ec2", "gcp",
+            )
             new_tags_set = set(new_data["tags"])
             # Nur dynamic tags aus dem aktuellen Source entfernen
             if new_source in ("osquery",):
