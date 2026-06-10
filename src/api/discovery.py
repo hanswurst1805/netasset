@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
@@ -35,6 +35,7 @@ class DiscoveredDevice(BaseModel):
     open_ports: Optional[list] = None
     tags: Optional[list[str]] = None
     source: str = "discovery"
+    min_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class IngestResult(BaseModel):
