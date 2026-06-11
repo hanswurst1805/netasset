@@ -35,6 +35,7 @@ from src.models.all_models import (
     Asset, BusinessProcess, CVEImpact, IpNetwork,
     NetworkGateway, Owner, ProcessAsset, SBOMEntry,
 )
+from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg
 
 router = APIRouter()
 
@@ -183,26 +184,32 @@ async def _asset_to_bl(asset: Asset, session: AsyncSession) -> BLSystem:
     # Primäres Netzwerk
     netz = await session.get(IpNetwork, asset.network_id) if asset.network_id else None
 
-    # CVE-Statistik
-    cve_result = await session.execute(
-        select(
-            CVEImpact.risk_level,
-            func.count().label("cnt"),
-        )
-        .where(CVEImpact.asset_id == asset.id)
-        .group_by(CVEImpact.risk_level)
-    )
-    cve_counts = {row.risk_level: row.cnt for row in cve_result}
+    # CVE-Statistik (Microcode-/Firmware-CVEs auf VMs sind hier nicht
+    # exploitierbar und werden für den Betriebsleitfaden ausgeblendet)
+    is_vm_asset = _is_vm(asset)
 
-    # KEV-Count
+    cve_result = await session.execute(
+        select(CVEImpact.risk_level, CVEImpact.affected_pkg)
+        .where(CVEImpact.asset_id == asset.id)
+    )
+    cve_counts: dict[str, int] = {}
+    for row in cve_result:
+        if is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""):
+            continue
+        cve_counts[row.risk_level] = cve_counts.get(row.risk_level, 0) + 1
+
+    # KEV-Count (gleiche Ausblendung für Microcode/Firmware auf VMs)
     from src.models.all_models import CVEEntry
     kev_result = await session.execute(
-        select(func.count())
+        select(CVEImpact.affected_pkg)
         .select_from(CVEImpact)
         .join(CVEEntry, CVEImpact.cve_id == CVEEntry.cve_id)
         .where(CVEImpact.asset_id == asset.id, CVEEntry.is_kev == True)
     )
-    kev_count = kev_result.scalar() or 0
+    kev_count = sum(
+        1 for row in kev_result
+        if not (is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""))
+    )
 
     # Lynis-Score
     from src.models.all_models import AssetReport

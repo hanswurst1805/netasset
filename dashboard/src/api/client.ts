@@ -48,6 +48,8 @@ export interface Asset {
   open_ports: { port: number; proto: string; reachable_from: string[] }[] | null
   tags: string[] | null
   is_active: boolean
+  needs_attention: boolean
+  attention_reasons: string[]
 }
 
 export interface SBOMEntry {

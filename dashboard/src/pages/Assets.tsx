@@ -242,6 +242,7 @@ export default function Assets() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [expFilter, setExpFilter] = useState('')
+  const [attentionFilter, setAttentionFilter] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
   const del = useMutation({
@@ -253,10 +254,11 @@ export default function Assets() {
   })
 
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ['assets', typeFilter, expFilter],
+    queryKey: ['assets', typeFilter, expFilter, attentionFilter],
     queryFn: () => api.assets.list({
       ...(typeFilter && { asset_type: typeFilter }),
       ...(expFilter && { exposure_level: expFilter }),
+      ...(attentionFilter && { needs_attention: 'true' }),
     }),
   })
 
@@ -301,6 +303,18 @@ export default function Assets() {
         >
           {EXPOSURES.map(e => <option key={e} value={e}>{e || 'Alle Exposures'}</option>)}
         </select>
+        <button
+          onClick={() => setAttentionFilter(a => !a)}
+          title="Nur Systeme mit kritischen CVEs, ausstehenden Updates/Reboot oder ohne aktuelle Sichtung anzeigen"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors ${
+            attentionFilter
+              ? 'bg-amber-900/50 border-amber-600 text-amber-300'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+          }`}
+        >
+          <AlertTriangle size={14} />
+          Aufmerksamkeit erforderlich
+        </button>
       </div>
 
       {/* Table */}
@@ -330,7 +344,16 @@ export default function Assets() {
                 className="group border-b border-gray-800 hover:bg-gray-800 transition-colors"
               >
                 <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
-                  <div className="font-medium text-gray-100">{asset.hostname ?? '—'}</div>
+                  <div className="font-medium text-gray-100 flex items-center gap-1.5">
+                    {asset.needs_attention && (
+                      <AlertTriangle
+                        size={14}
+                        className="text-amber-400 shrink-0"
+                        title={asset.attention_reasons?.join(', ')}
+                      />
+                    )}
+                    {asset.hostname ?? '—'}
+                  </div>
                   <div className="text-xs text-gray-500">{asset.ip_address}</div>
                 </td>
                 <td className="px-4 py-3 text-gray-400 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>{asset.asset_type}</td>

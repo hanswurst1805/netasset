@@ -12,9 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
-from src.models.all_models import Asset
+from src.models.all_models import Asset, CVEEntry, CVEImpact
+from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg
 
 router = APIRouter()
+
+# Schwelle für "last_seen_at zu alt" (Aufmerksamkeits-Filter)
+STALE_HOURS = 24
+
+
+def _is_stale(last_seen: Optional[datetime]) -> bool:
+    if not last_seen:
+        return True
+    return (datetime.utcnow() - last_seen).total_seconds() > STALE_HOURS * 3600
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +81,8 @@ class AssetOut(BaseModel):
     min_confidence: Optional[float] = None
     last_seen_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    needs_attention: bool = False
+    attention_reasons: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -79,11 +91,74 @@ class AssetOut(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+async def _annotate_attention(assets: list[Asset], session: AsyncSession) -> None:
+    """
+    Markiert Assets, die Aufmerksamkeit benötigen, mit `needs_attention` + `attention_reasons`.
+    Kriterien: HIGH-Risk-CVEs, aktiv ausgenutzte CVEs (KEV), ausstehender Reboot,
+    ausstehende Security-Updates, oder seit > STALE_HOURS nicht gesehen.
+    Microcode-/Firmware-CVEs auf VMs werden dabei ignoriert (nicht exploitierbar).
+    """
+    if not assets:
+        return
+
+    asset_ids = [a.id for a in assets]
+
+    high_risk: dict[uuid.UUID, set[str]] = {}
+    rows = await session.execute(
+        select(CVEImpact.asset_id, CVEImpact.affected_pkg)
+        .where(CVEImpact.asset_id.in_(asset_ids), CVEImpact.risk_level == "HIGH")
+    )
+    for row in rows:
+        high_risk.setdefault(row.asset_id, set()).add(row.affected_pkg or "")
+
+    kev: dict[uuid.UUID, set[str]] = {}
+    rows = await session.execute(
+        select(CVEImpact.asset_id, CVEImpact.affected_pkg)
+        .select_from(CVEImpact)
+        .join(CVEEntry, CVEImpact.cve_id == CVEEntry.cve_id)
+        .where(CVEImpact.asset_id.in_(asset_ids), CVEEntry.is_kev == True)
+    )
+    for row in rows:
+        kev.setdefault(row.asset_id, set()).add(row.affected_pkg or "")
+
+    for asset in assets:
+        reasons: list[str] = []
+        is_vm_asset = _is_vm(asset)
+
+        def _relevant(pkgs: set[str]) -> bool:
+            return any(
+                not (is_vm_asset and _is_vm_irrelevant_pkg(pkg))
+                for pkg in pkgs
+            )
+
+        if _relevant(high_risk.get(asset.id, set())):
+            reasons.append("kritische CVEs (HIGH)")
+        if _relevant(kev.get(asset.id, set())):
+            reasons.append("aktiv ausgenutzte CVE (KEV)")
+
+        tags = asset.tags or []
+        if "reboot-required" in tags:
+            reasons.append("Neustart erforderlich")
+
+        sec_updates = next(
+            (t.split(":")[1] for t in tags if t.startswith("security-updates:")), None
+        )
+        if sec_updates and sec_updates.isdigit() and int(sec_updates) > 0:
+            reasons.append(f"{sec_updates} Security-Updates ausstehend")
+
+        if _is_stale(asset.last_seen_at):
+            reasons.append("nicht kürzlich gesehen")
+
+        asset.needs_attention = bool(reasons)
+        asset.attention_reasons = reasons
+
+
 @router.get("", response_model=list[AssetOut])
 async def list_assets(
     asset_type: Optional[str] = None,
     exposure_level: Optional[str] = None,
     is_active: bool = True,
+    needs_attention: Optional[bool] = None,
     limit: int = Query(100, le=500),
     offset: int = 0,
     session: AsyncSession = Depends(get_session),
@@ -100,7 +175,14 @@ async def list_assets(
         stmt = stmt.where(Asset.tags.overlap(allowed))
     stmt = stmt.offset(offset).limit(limit)
     result = await session.execute(stmt)
-    return result.scalars().all()
+    assets = result.scalars().all()
+
+    await _annotate_attention(assets, session)
+
+    if needs_attention:
+        assets = [a for a in assets if a.needs_attention]
+
+    return assets
 
 
 @router.post("", response_model=AssetOut, status_code=201)
