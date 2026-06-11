@@ -129,6 +129,74 @@ async def osv_scan_all(
     return result
 
 
+@router.get("/list")
+async def list_cves(
+    affected_only: bool = False,
+    q: str | None = None,
+    min_cvss: float = 0.0,
+    limit: int = 50,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Listet CVEs absteigend nach CVSS-Score sortiert.
+    affected_only=true: nur CVEs, die mindestens ein aktives Asset betreffen.
+    """
+    from sqlalchemy import desc, or_, select
+    from src.models.all_models import Asset, CVEEntry, CVEImpact
+
+    stmt = select(CVEEntry)
+
+    if affected_only:
+        stmt = (
+            stmt.join(CVEImpact, CVEImpact.cve_id == CVEEntry.cve_id)
+            .join(Asset, CVEImpact.asset_id == Asset.id)
+            .where(Asset.is_active == True)
+            .distinct()
+        )
+
+    if min_cvss > 0:
+        stmt = stmt.where(CVEEntry.cvss_score >= min_cvss)
+
+    if q:
+        pattern = f"%{q}%"
+        stmt = stmt.where(or_(CVEEntry.cve_id.ilike(pattern), CVEEntry.description.ilike(pattern)))
+
+    stmt = stmt.order_by(desc(CVEEntry.cvss_score)).limit(limit)
+
+    rows = await session.execute(stmt)
+    cves = rows.scalars().all()
+
+    # Betroffene Systeme pro CVE – Anzahl + Hostnamen
+    affected_map: dict[str, list[str]] = {}
+    if cves:
+        cve_ids = [c.cve_id for c in cves]
+        impact_rows = await session.execute(
+            select(CVEImpact.cve_id, Asset.id, Asset.hostname, Asset.ip_address)
+            .join(Asset, CVEImpact.asset_id == Asset.id)
+            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True)
+        )
+        for row in impact_rows:
+            label = row.hostname or str(row.ip_address) or str(row.id)
+            affected_map.setdefault(row.cve_id, []).append(label)
+
+    results = []
+    for c in cves:
+        hosts = affected_map.get(c.cve_id, [])
+        results.append({
+            "cve_id": c.cve_id,
+            "description": c.description,
+            "cvss_score": c.cvss_score,
+            "severity": c.severity,
+            "is_kev": c.is_kev,
+            "affected_assets": len(hosts),
+            "affected_hostnames": hosts,
+        })
+
+    results.sort(key=lambda r: (r["cvss_score"] or 0, r["affected_assets"]), reverse=True)
+    return results
+
+
 @router.get("/search")
 async def search(
     q: str,

@@ -68,6 +68,16 @@ export interface CVEResult {
   similarity: number
 }
 
+export interface CVEListEntry {
+  cve_id: string
+  description: string
+  cvss_score: number | null
+  severity: string | null
+  is_kev: boolean
+  affected_assets: number
+  affected_hostnames: string[]
+}
+
 export interface AffectedAsset {
   asset_id: string
   hostname: string | null
@@ -188,6 +198,10 @@ export const api = {
   },
   cve: {
     search: (q: string) => req<CVEResult[]>(`/cve/search?q=${encodeURIComponent(q)}&top_k=20`),
+    list: (affectedOnly: boolean, q?: string) =>
+      req<CVEListEntry[]>(
+        `/cve/list?affected_only=${affectedOnly}&limit=100${q ? `&q=${encodeURIComponent(q)}` : ''}`
+      ),
     impact: (cveId: string) => req<ImpactReport>(`/cve/${cveId}/impact?use_llm=false`),
     query: (question: string) =>
       req<{ question: string; answer: string }>('/cve/query', {

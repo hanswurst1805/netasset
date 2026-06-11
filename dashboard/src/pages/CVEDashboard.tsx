@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, type ImpactReport } from '../api/client'
+import { api, type ImpactReport, type CVEResult, type CVEListEntry } from '../api/client'
 import Badge from '../components/Badge'
 import { Search, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -81,13 +81,25 @@ function ImpactPanel({ report }: { report: ImpactReport }) {
 
 export default function CVEDashboard() {
   const [search, setSearch] = useState('')
+  const [semanticSearch, setSemanticSearch] = useState('')
   const [selectedCVE, setSelectedCVE] = useState<string | null>(null)
+  const [tab, setTab] = useState<'affected' | 'all'>('affected')
 
-  const { data: results = [], isLoading, refetch } = useQuery({
-    queryKey: ['cve-search', search],
-    queryFn: () => api.cve.search(search || 'critical vulnerability'),
-    enabled: true,
+  const { data: listResults = [], isLoading: listLoading, refetch: refetchList } = useQuery({
+    queryKey: ['cve-list', tab, search],
+    queryFn: () => api.cve.list(tab === 'affected', search || undefined),
+    enabled: !semanticSearch,
   })
+
+  const { data: semanticResults = [], isLoading: semanticLoading, refetch: refetchSemantic } = useQuery({
+    queryKey: ['cve-search', semanticSearch],
+    queryFn: () => api.cve.search(semanticSearch),
+    enabled: !!semanticSearch,
+  })
+
+  const isLoading = semanticSearch ? semanticLoading : listLoading
+  const results: (CVEListEntry | (CVEResult & { affected_assets?: number; affected_hostnames?: string[]; is_kev?: boolean }))[] =
+    semanticSearch ? semanticResults : listResults
 
   const { data: impact } = useQuery({
     queryKey: ['cve-impact', selectedCVE],
@@ -99,30 +111,65 @@ export default function CVEDashboard() {
     <div>
       <h1 className="text-2xl font-bold mb-6">CVE Dashboard</h1>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-4">
+        <div className="relative flex-1 max-w-lg">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            placeholder="Filter: CVE-ID oder Stichwort..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && refetchList()}
+          />
+        </div>
         <div className="relative flex-1 max-w-lg">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             className="w-full bg-gray-800 border border-gray-700 rounded-md pl-8 pr-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             placeholder="Semantische CVE-Suche: z.B. openssl buffer overflow..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && refetch()}
+            value={semanticSearch}
+            onChange={e => setSemanticSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && refetchSemantic()}
           />
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => (semanticSearch ? refetchSemantic() : refetchList())}
           className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-4 py-1.5 rounded-md transition-colors"
         >
           Suchen
         </button>
       </div>
 
+      {!semanticSearch && (
+        <div className="flex gap-1 mb-6 border-b border-gray-800">
+          <button
+            onClick={() => setTab('affected')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'affected'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Betroffene Assets
+          </button>
+          <button
+            onClick={() => setTab('all')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'all'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            Alle CVEs
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-6">
         {/* CVE Liste */}
         <div>
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            {isLoading ? 'Suche läuft…' : `${results.length} CVEs gefunden`}
+            {isLoading ? 'Lädt…' : `${results.length} CVEs${semanticSearch ? ' gefunden' : ' (nach CVSS sortiert)'}`}
           </h2>
           <div className="space-y-2">
             {results.map(r => (
@@ -151,7 +198,9 @@ export default function CVEDashboard() {
                 </div>
                 <p className="text-xs text-gray-500 line-clamp-2">{r.description}</p>
                 <div className="flex items-center justify-between mt-1.5">
-                  <div className="text-xs text-gray-600">Similarity: {(r.similarity * 100).toFixed(0)}%</div>
+                  {'similarity' in r && (
+                    <div className="text-xs text-gray-600">Similarity: {((r as any).similarity * 100).toFixed(0)}%</div>
+                  )}
                   {(r as any).affected_assets > 0 && (
                     <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                       (r as any).affected_assets >= 5 ? 'bg-red-900/50 text-red-400' :
