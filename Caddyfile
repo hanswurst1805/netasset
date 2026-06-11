@@ -35,3 +35,15 @@
         }
     }
 }
+
+# Integration Betriebsleitfaden (separater Dienst, eigener Container)
+bl.kiste.org {
+    reverse_proxy 10.88.0.1:8001
+    encode gzip
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}
