@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -76,7 +76,6 @@ class AffectedAsset(BaseModel):
     risk_score: float
     risk_level: str
     open_ports: Optional[list]
-    note: Optional[str] = None   # z.B. "Nicht exploitierbar auf VMs"
 
 
 class ImpactReport(BaseModel):
@@ -190,20 +189,20 @@ async def get_cve_impact(
                 pass
 
             if is_affected:
-                cvss = cve.cvss_score or 5.0
-                note: Optional[str] = None
-
                 # VM-Check: Microcode/Firmware-CVEs sind auf VMs nicht exploitierbar
+                # und werden komplett ausgeblendet (kein Eintrag, kein Cache)
                 if hide_vm_microcode and _is_vm(asset) and _is_vm_irrelevant_pkg(entry.pkg_name):
-                    score = 0.1   # symbolisch niedrig, aber sichtbar
-                    risk = "LOW"
-                    note = (
-                        "Nicht exploitierbar auf VMs/Containern — "
-                        "Microcode wird vom Hypervisor-Host geladen, nicht vom Gast-OS."
+                    await session.execute(
+                        delete(CVEImpact).where(
+                            CVEImpact.cve_id == cve_id,
+                            CVEImpact.asset_id == asset.id,
+                        )
                     )
-                else:
-                    score = _calc_risk_score(cvss, asset.exposure_level, asset.open_ports)
-                    risk = _risk_level(score)
+                    continue
+
+                cvss = cve.cvss_score or 5.0
+                score = _calc_risk_score(cvss, asset.exposure_level, asset.open_ports)
+                risk = _risk_level(score)
 
                 affected_assets.append(
                     AffectedAsset(
@@ -216,7 +215,6 @@ async def get_cve_impact(
                         risk_score=score,
                         risk_level=risk,
                         open_ports=asset.open_ports,
-                        note=note,
                     )
                 )
                 break  # pro Asset reicht ein Match

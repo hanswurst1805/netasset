@@ -41,26 +41,15 @@ function ImpactPanel({ report }: { report: ImpactReport }) {
                 </thead>
                 <tbody>
                   {report.affected_assets.map(a => (
-                    <>
-                      <tr key={a.asset_id} className="border-b border-gray-800">
-                        <td className="py-1.5">{a.hostname ?? a.ip_address}</td>
-                        <td className="py-1.5"><Badge value={a.exposure_level} /></td>
-                        <td className="py-1.5 font-mono text-xs text-gray-400">{a.affected_package} {a.package_version}</td>
-                        <td className="py-1.5">
-                          <Badge value={a.risk_level} />
-                          <span className="text-xs text-gray-500 ml-2">{a.risk_score}</span>
-                        </td>
-                      </tr>
-                      {(a as any).note && (
-                        <tr key={`${a.asset_id}-note`} className="border-b border-gray-800">
-                          <td colSpan={4} className="pb-1.5 pt-0">
-                            <span className="text-xs text-yellow-600 bg-yellow-950/40 border border-yellow-900/50 rounded px-2 py-0.5">
-                              ⓘ {(a as any).note}
-                            </span>
-                          </td>
-                        </tr>
-                      )}
-                    </>
+                    <tr key={a.asset_id} className="border-b border-gray-800">
+                      <td className="py-1.5">{a.hostname ?? a.ip_address}</td>
+                      <td className="py-1.5"><Badge value={a.exposure_level} /></td>
+                      <td className="py-1.5 font-mono text-xs text-gray-400">{a.affected_package} {a.package_version}</td>
+                      <td className="py-1.5">
+                        <Badge value={a.risk_level} />
+                        <span className="text-xs text-gray-500 ml-2">{a.risk_score}</span>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>

@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Optional
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.all_models import Asset, CVEEntry, CVEImpact, SBOMEntry
@@ -203,7 +203,7 @@ async def scan_asset_osv(
     # Aufräumen: Debian-spezifische Advisory-IDs (DSA-/DEBIAN-CVE-*/DLA-*) aus
     # früheren Scans sind für Ubuntu-Assets nicht aussagekräftig
     if "ubuntu" in os_name.lower():
-        from sqlalchemy import delete, or_
+        from sqlalchemy import or_
         await session.execute(
             delete(CVEImpact).where(
                 CVEImpact.asset_id == asset.id,
@@ -309,15 +309,21 @@ async def scan_asset_osv(
                 new_cves += 1
                 await session.flush()
 
+            # Microcode/Firmware-CVEs sind auf VMs/Containern nicht exploitierbar
+            # und werden komplett ausgeblendet (kein CVEImpact-Eintrag)
+            if hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(entry.pkg_name):
+                await session.execute(
+                    delete(CVEImpact).where(
+                        CVEImpact.cve_id == cve_id,
+                        CVEImpact.asset_id == asset.id,
+                    )
+                )
+                continue
+
             # Risk Score berechnen
             cvss_val = existing_cve.cvss_score or 5.0
-            if hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(entry.pkg_name):
-                # Microcode/Firmware-CVEs sind auf VMs/Containern nicht exploitierbar
-                risk_score = 0.1
-                risk_level = "LOW"
-            else:
-                risk_score = _calc_risk_score(cvss_val, asset.exposure_level, asset.open_ports)
-                risk_level = _risk_level(risk_score)
+            risk_score = _calc_risk_score(cvss_val, asset.exposure_level, asset.open_ports)
+            risk_level = _risk_level(risk_score)
 
             # CVEImpact anlegen / aktualisieren
             existing_impact = (await session.execute(
