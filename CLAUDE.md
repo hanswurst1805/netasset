@@ -18,6 +18,7 @@ vollständige Web-GUI für Betrieb und Sicherheitsauswertung.
 - Discovery-API mit prioritätsbasiertem Source-Merging und Conflict Queue
 - Stabile Geräte-Identifikation via UUID + Fingerprinting + min_confidence pro Asset
 - JWT-Auth + API-Keys mit Tag-basierter Zugriffskontrolle
+- Optionale Zwei-Faktor-Authentifizierung (TOTP) inkl. Backup-Codes
 - Tägliche Asset-Snapshots (30 Tage Historie, Diff-Ansicht)
 - Lynis-Report Upload + Viewer mit Hardening-Score
 - Strukturierte Security-Reports (Security Posture, Network Exposure, SBOM-Vuln, Prozess-Risiko)
@@ -175,6 +176,10 @@ I – Infrastructure Netzwerk, Exposure, Ports, VLANs    [ip_networks, gateways]
 ## Auth & Zugriffskontrolle
 
 - **JWT-Login** (8h, via OpenRouter-kompatible Tokens)
+- **2FA (TOTP)**: optional pro Account aktivierbar (Google Authenticator/Aegis/
+  1Password/Authy-kompatibel), inkl. 10 Backup-Codes; zweistufiger Login
+  (`/auth/login` → `mfa_required` → `/auth/2fa/verify`); Self-Service unter
+  „Einstellungen" (`/auth/2fa/setup|enable|disable`)
 - **API-Keys** (`sk-na-...`, bcrypt-gehasht, nur einmal sichtbar)
 - **Rollen**: `admin` (alles), `user` (eingeschränkt auf allowed_tags)
 - **Tag-basierter Zugriff**: User sieht nur Assets mit seinen Tags

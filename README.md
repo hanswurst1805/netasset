@@ -18,6 +18,7 @@ vollständige Web-GUI für Betrieb und Sicherheitsauswertung.
 - Discovery-API mit prioritätsbasiertem Source-Merging und Conflict Queue
 - Stabile Geräte-Identifikation via UUID + Fingerprinting + min_confidence pro Asset
 - JWT-Auth + API-Keys mit Tag-basierter Zugriffskontrolle
+- Optionale Zwei-Faktor-Authentifizierung (TOTP) inkl. Backup-Codes
 - Tägliche Asset-Snapshots (30 Tage Historie, Diff-Ansicht)
 - Lynis-Report Upload + Viewer mit Hardening-Score
 - Strukturierte Security-Reports (Security Posture, Network Exposure, SBOM-Vuln, Prozess-Risiko)
@@ -175,6 +176,9 @@ I – Infrastructure Netzwerk, Exposure, Ports, VLANs    [ip_networks, gateways]
 ## Auth & Zugriffskontrolle
 
 - **JWT-Login** (8h, via OpenRouter-kompatible Tokens)
+- **2FA (TOTP)**: optionale Zwei-Faktor-Authentifizierung pro Account
+  (Google Authenticator/Aegis/1Password/Authy-kompatibel) inkl.
+  Backup-Codes, Self-Service unter „Einstellungen"
 - **API-Keys** (`sk-na-...`, bcrypt-gehasht, nur einmal sichtbar)
 - **Rollen**: `admin` (alles), `user` (eingeschränkt auf allowed_tags)
 - **Tag-basierter Zugriff**: User sieht nur Assets mit seinen Tags
@@ -255,6 +259,8 @@ LLM-Summary: `POST /reporting/{type}/summary` — optional, non-blocking, max 20
 
 ### Auth
 - `POST /auth/login`
+- `POST /auth/2fa/verify` (zweiter Login-Schritt mit TOTP-/Backup-Code)
+- `POST /auth/2fa/setup` / `POST /auth/2fa/enable` / `POST /auth/2fa/disable`
 - `GET/POST/DELETE /auth/users`
 - `GET/POST/DELETE /auth/apikeys`
 

@@ -31,6 +31,22 @@ Benutzername und Passwort wird man auf `/assets` weitergeleitet.
 Das Login erzeugt ein JWT-Token, das 8 Stunden gültig ist. Danach ist eine
 erneute Anmeldung nötig.
 
+### Zwei-Faktor-Authentifizierung (2FA)
+
+Hat ein Benutzer 2FA aktiviert (siehe [A.12](#a12-einstellungen-settings)),
+erscheint nach Benutzername/Passwort ein zweiter Schritt:
+
+- Eingabe des **6-stelligen Codes** aus einer Authenticator-App
+  (z.B. Google Authenticator, Aegis, 1Password, Authy)
+- Alternativ kann einer der zuvor generierten **Backup-Codes**
+  (Format `xxxx-xxxx`) eingegeben werden – jeder Backup-Code ist nur
+  **einmal** gültig
+- Button **„Zurück zum Login"** bricht den 2FA-Schritt ab und kehrt zur
+  Passwort-Eingabe zurück
+- Bei falschem Code: Fehlermeldung „Code ungültig"
+
+Erst nach erfolgreicher 2FA-Prüfung wird das JWT-Token ausgestellt.
+
 Es gibt zwei Rollen:
 
 - **admin**: voller Zugriff auf alle Assets, Einstellungen, Benutzer­verwaltung
@@ -359,6 +375,33 @@ Asset- und CVE-Daten, keine Halluzinationen).
   erlaubte Tags (leer = Zugriff auf alle Assets)
 - Tabelle aller Benutzer: Username (+E-Mail), Rollen-Badge, Tags,
   Löschen-Button
+
+### Zwei-Faktor-Authentifizierung – 2FA (alle Benutzer)
+
+Jeder Benutzer kann für seinen eigenen Account 2FA per TOTP
+(Time-based One-Time Password) aktivieren – kompatibel mit gängigen
+Authenticator-Apps (Google Authenticator, Aegis, 1Password, Authy, …).
+
+**Aktivieren:**
+
+1. Button **„2FA einrichten"** klicken
+2. QR-Code mit der Authenticator-App scannen (alternativ das angezeigte
+   Secret manuell in der App eintragen)
+3. Den von der App generierten 6-stelligen Code eingeben und mit
+   **„Aktivieren"** bestätigen
+4. Es werden **10 Backup-Codes** angezeigt (Format `xxxx-xxxx`) – diese
+   an einem sicheren Ort aufbewahren! Sie werden nur **einmalig**
+   angezeigt und ermöglichen den Login, falls die Authenticator-App
+   nicht verfügbar ist (jeder Code ist nur einmal gültig)
+
+Nach der Aktivierung wird beim Login zusätzlich zu Benutzername/Passwort
+ein 2FA-Code abgefragt (siehe [A.1](#a1-anmeldung-login)).
+
+**Deaktivieren:**
+
+- Im Bereich „Zwei-Faktor-Authentifizierung" einen aktuellen TOTP-Code
+  oder einen Backup-Code eingeben und auf **„2FA deaktivieren"** klicken
+- Danach ist beim Login wieder nur Benutzername/Passwort erforderlich
 
 ### API-Keys (alle Benutzer)
 

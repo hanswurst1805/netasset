@@ -158,7 +158,10 @@
 <ul>
 <li><a href="#drucker-benutzer-und-betriebshandbuch">DRUCKER – Benutzer- und Betriebshandbuch</a></li>
 <li><a href="#teil-a-benutzerhandbuch">Teil A – Benutzerhandbuch</a><ul>
-<li><a href="#a1-anmeldung-login">A.1 Anmeldung (Login)</a></li>
+<li><a href="#a1-anmeldung-login">A.1 Anmeldung (Login)</a><ul>
+<li><a href="#zwei-faktor-authentifizierung-2fa">Zwei-Faktor-Authentifizierung (2FA)</a></li>
+</ul>
+</li>
 <li><a href="#a2-assets-assets">A.2 Assets (/assets)</a><ul>
 <li><a href="#tabs">Tabs</a></li>
 <li><a href="#filter">Filter</a></li>
@@ -195,6 +198,7 @@
 <li><a href="#a12-einstellungen-settings">A.12 Einstellungen (/settings)</a><ul>
 <li><a href="#allgemein-nur-admin">Allgemein (nur Admin)</a></li>
 <li><a href="#benutzer-nur-admin">Benutzer (nur Admin)</a></li>
+<li><a href="#zwei-faktor-authentifizierung-2fa-alle-benutzer">Zwei-Faktor-Authentifizierung – 2FA (alle Benutzer)</a></li>
 <li><a href="#api-keys-alle-benutzer">API-Keys (alle Benutzer)</a></li>
 </ul>
 </li>
@@ -251,6 +255,20 @@ Benutzername und Passwort wird man auf <code>/assets</code> weitergeleitet.</p>
 </ul>
 <p>Das Login erzeugt ein JWT-Token, das 8 Stunden gültig ist. Danach ist eine
 erneute Anmeldung nötig.</p>
+<h3 id="zwei-faktor-authentifizierung-2fa">Zwei-Faktor-Authentifizierung (2FA)</h3>
+<p>Hat ein Benutzer 2FA aktiviert (siehe <a href="#a12-einstellungen-settings">A.12</a>),
+erscheint nach Benutzername/Passwort ein zweiter Schritt:</p>
+<ul>
+<li>Eingabe des <strong>6-stelligen Codes</strong> aus einer Authenticator-App
+  (z.B. Google Authenticator, Aegis, 1Password, Authy)</li>
+<li>Alternativ kann einer der zuvor generierten <strong>Backup-Codes</strong>
+  (Format <code>xxxx-xxxx</code>) eingegeben werden – jeder Backup-Code ist nur
+  <strong>einmal</strong> gültig</li>
+<li>Button <strong>„Zurück zum Login"</strong> bricht den 2FA-Schritt ab und kehrt zur
+  Passwort-Eingabe zurück</li>
+<li>Bei falschem Code: Fehlermeldung „Code ungültig"</li>
+</ul>
+<p>Erst nach erfolgreicher 2FA-Prüfung wird das JWT-Token ausgestellt.</p>
 <p>Es gibt zwei Rollen:</p>
 <ul>
 <li><strong>admin</strong>: voller Zugriff auf alle Assets, Einstellungen, Benutzer­verwaltung</li>
@@ -568,6 +586,30 @@ Asset- und CVE-Daten, keine Halluzinationen).</p>
   erlaubte Tags (leer = Zugriff auf alle Assets)</li>
 <li>Tabelle aller Benutzer: Username (+E-Mail), Rollen-Badge, Tags,
   Löschen-Button</li>
+</ul>
+<h3 id="zwei-faktor-authentifizierung-2fa-alle-benutzer">Zwei-Faktor-Authentifizierung – 2FA (alle Benutzer)</h3>
+<p>Jeder Benutzer kann für seinen eigenen Account 2FA per TOTP
+(Time-based One-Time Password) aktivieren – kompatibel mit gängigen
+Authenticator-Apps (Google Authenticator, Aegis, 1Password, Authy, …).</p>
+<p><strong>Aktivieren:</strong></p>
+<ol>
+<li>Button <strong>„2FA einrichten"</strong> klicken</li>
+<li>QR-Code mit der Authenticator-App scannen (alternativ das angezeigte
+   Secret manuell in der App eintragen)</li>
+<li>Den von der App generierten 6-stelligen Code eingeben und mit
+   <strong>„Aktivieren"</strong> bestätigen</li>
+<li>Es werden <strong>10 Backup-Codes</strong> angezeigt (Format <code>xxxx-xxxx</code>) – diese
+   an einem sicheren Ort aufbewahren! Sie werden nur <strong>einmalig</strong>
+   angezeigt und ermöglichen den Login, falls die Authenticator-App
+   nicht verfügbar ist (jeder Code ist nur einmal gültig)</li>
+</ol>
+<p>Nach der Aktivierung wird beim Login zusätzlich zu Benutzername/Passwort
+ein 2FA-Code abgefragt (siehe <a href="#a1-anmeldung-login">A.1</a>).</p>
+<p><strong>Deaktivieren:</strong></p>
+<ul>
+<li>Im Bereich „Zwei-Faktor-Authentifizierung" einen aktuellen TOTP-Code
+  oder einen Backup-Code eingeben und auf <strong>„2FA deaktivieren"</strong> klicken</li>
+<li>Danach ist beim Login wieder nur Benutzername/Passwort erforderlich</li>
 </ul>
 <h3 id="api-keys-alle-benutzer">API-Keys (alle Benutzer)</h3>
 <ul>
