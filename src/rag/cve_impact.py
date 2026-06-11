@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from src.core.config import settings
 from src.core.llm import llm_complete
-from src.models.all_models import Asset, BusinessProcess, CVEEntry, CVEImpact, ProcessAsset, SBOMEntry
+from src.models.all_models import AppSettings, Asset, BusinessProcess, CVEEntry, CVEImpact, ProcessAsset, SBOMEntry
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,14 @@ def _is_vm_irrelevant_pkg(pkg_name: str) -> bool:
     if name in VM_IRRELEVANT_PKGS:
         return True
     return any(name.startswith(p) for p in VM_IRRELEVANT_PREFIXES)
+
+
+async def get_hide_vm_microcode_setting(session: AsyncSession) -> bool:
+    """Liefert die globale Einstellung 'Microcode-CVEs auf VMs ausblenden'."""
+    settings_row = await session.get(AppSettings, 1)
+    if settings_row is None:
+        return True  # Default: bisheriges Verhalten beibehalten
+    return settings_row.hide_vm_microcode_cves
 
 
 class AffectedAsset(BaseModel):
@@ -153,6 +161,8 @@ async def get_cve_impact(
     result = await session.execute(stmt)
     assets = result.scalars().all()
 
+    hide_vm_microcode = await get_hide_vm_microcode_setting(session)
+
     # SBOM-Matching: Welche Assets haben betroffene Pakete?
     affected_assets: list[AffectedAsset] = []
     for asset in assets:
@@ -182,7 +192,7 @@ async def get_cve_impact(
                 note: Optional[str] = None
 
                 # VM-Check: Microcode/Firmware-CVEs sind auf VMs nicht exploitierbar
-                if _is_vm(asset) and _is_vm_irrelevant_pkg(entry.pkg_name):
+                if hide_vm_microcode and _is_vm(asset) and _is_vm_irrelevant_pkg(entry.pkg_name):
                     score = 0.1   # symbolisch niedrig, aber sichtbar
                     risk = "LOW"
                     note = (

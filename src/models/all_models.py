@@ -457,3 +457,17 @@ class CVEImpact(Base):
     __table_args__ = (
         UniqueConstraint("cve_id", "asset_id", name="uq_cve_impact_cve_asset"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Globale Anwendungseinstellungen (Single-Row, id=1)
+# ---------------------------------------------------------------------------
+
+class AppSettings(Base):
+    """Globale, über die UI änderbare Einstellungen (eine Zeile, id=1)."""
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Microcode-/Firmware-CVEs (intel-microcode, amd64-microcode, ...) auf
+    # VMs/VPS als nicht-exploitierbar ausblenden bzw. herabstufen.
+    hide_vm_microcode_cves: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

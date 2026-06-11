@@ -35,7 +35,7 @@ from src.models.all_models import (
     Asset, BusinessProcess, CVEImpact, IpNetwork,
     NetworkGateway, Owner, ProcessAsset, SBOMEntry,
 )
-from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg
+from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg, get_hide_vm_microcode_setting
 
 router = APIRouter()
 
@@ -185,7 +185,9 @@ async def _asset_to_bl(asset: Asset, session: AsyncSession) -> BLSystem:
     netz = await session.get(IpNetwork, asset.network_id) if asset.network_id else None
 
     # CVE-Statistik (Microcode-/Firmware-CVEs auf VMs sind hier nicht
-    # exploitierbar und werden für den Betriebsleitfaden ausgeblendet)
+    # exploitierbar und werden für den Betriebsleitfaden ausgeblendet,
+    # sofern in den Einstellungen aktiviert)
+    hide_vm_microcode = await get_hide_vm_microcode_setting(session)
     is_vm_asset = _is_vm(asset)
 
     cve_result = await session.execute(
@@ -194,7 +196,7 @@ async def _asset_to_bl(asset: Asset, session: AsyncSession) -> BLSystem:
     )
     cve_counts: dict[str, int] = {}
     for row in cve_result:
-        if is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""):
+        if hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""):
             continue
         cve_counts[row.risk_level] = cve_counts.get(row.risk_level, 0) + 1
 
@@ -208,7 +210,7 @@ async def _asset_to_bl(asset: Asset, session: AsyncSession) -> BLSystem:
     )
     kev_count = sum(
         1 for row in kev_result
-        if not (is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""))
+        if not (hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(row.affected_pkg or ""))
     )
 
     # Lynis-Score

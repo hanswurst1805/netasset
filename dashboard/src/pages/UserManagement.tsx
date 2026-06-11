@@ -89,6 +89,51 @@ function NewUserForm({ onClose }: { onClose: () => void }) {
   )
 }
 
+function GeneralSettingsSection() {
+  const qc = useQueryClient()
+  const { data: settings } = useQuery({ queryKey: ['app-settings'], queryFn: api.settings.get })
+
+  const update = useMutation({
+    mutationFn: (body: Partial<{ hide_vm_microcode_cves: boolean }>) => api.settings.update(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['app-settings'] }),
+  })
+
+  if (!settings) return null
+
+  return (
+    <div>
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        Allgemein
+      </h2>
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm font-medium text-gray-200">Microcode-Updates für VMs/VPS ausblenden</div>
+          <div className="text-xs text-gray-500 mt-1">
+            CVEs zu intel-microcode, amd64-microcode, linux-firmware u.ä. werden auf
+            virtuellen Maschinen als nicht exploitierbar herabgestuft, da der
+            Hypervisor-Host das Microcode-Update lädt, nicht der Gast.
+          </div>
+        </div>
+        <button
+          role="switch"
+          aria-checked={settings.hide_vm_microcode_cves}
+          onClick={() => update.mutate({ hide_vm_microcode_cves: !settings.hide_vm_microcode_cves })}
+          disabled={update.isPending}
+          className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+            settings.hide_vm_microcode_cves ? 'bg-indigo-600' : 'bg-gray-700'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              settings.hide_vm_microcode_cves ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function APIKeySection() {
   const { data: keys = [], error: listError } = useQuery({ queryKey: ['apikeys'], queryFn: api.auth.apiKeys.list })
   const qc = useQueryClient()
@@ -263,6 +308,12 @@ export default function UserManagement() {
   return (
     <div className="max-w-3xl space-y-8">
       <h1 className="text-2xl font-bold">Einstellungen</h1>
+
+      {isAdmin && (
+        <section>
+          <GeneralSettingsSection />
+        </section>
+      )}
 
       {isAdmin && (
         <section>

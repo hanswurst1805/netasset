@@ -231,6 +231,14 @@ export const api = {
     update: (id: string, body: object) => req<AppEntity>(`/applications/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string) => req<void>(`/applications/${id}`, { method: 'DELETE' }),
   },
+  settings: {
+    get: () => req<AppSettings>('/settings'),
+    update: (body: Partial<AppSettings>) => req<AppSettings>('/settings', { method: 'PUT', body: JSON.stringify(body) }),
+  },
+}
+
+export interface AppSettings {
+  hide_vm_microcode_cves: boolean
 }
 
 export interface Owner {

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
 from src.models.all_models import Asset, CVEEntry, CVEImpact
-from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg
+from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg, get_hide_vm_microcode_setting
 
 router = APIRouter()
 
@@ -124,13 +124,15 @@ async def _annotate_attention(assets: list[Asset], session: AsyncSession) -> Non
     for row in rows:
         kev.setdefault(row.asset_id, set()).add(row.affected_pkg or "")
 
+    hide_vm_microcode = await get_hide_vm_microcode_setting(session)
+
     for asset in assets:
         reasons: list[str] = []
         is_vm_asset = _is_vm(asset)
 
         def _relevant(pkgs: set[str]) -> bool:
             return any(
-                not (is_vm_asset and _is_vm_irrelevant_pkg(pkg))
+                not (hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(pkg))
                 for pkg in pkgs
             )
 
