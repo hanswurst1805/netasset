@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRUCKER – Benutzer- und Betriebshandbuch</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #161922;
+    --border: #2a2f3a;
+    --text: #e2e4e9;
+    --text-muted: #9aa1ae;
+    --accent: #6366f1;
+    --code-bg: #1e2230;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+    min-height: 100vh;
+  }
+  nav#toc {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 24px 18px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  nav#toc h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+  }
+  nav#toc ul {
+    list-style: none;
+    margin: 0;
+    padding-left: 0;
+  }
+  nav#toc ul ul {
+    padding-left: 16px;
+  }
+  nav#toc li { margin: 2px 0; }
+  nav#toc a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.875rem;
+    display: block;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+  }
+  nav#toc a:hover {
+    background: var(--code-bg);
+    color: var(--text);
+  }
+  main {
+    flex: 1;
+    max-width: 900px;
+    padding: 40px 56px 100px;
+  }
+  h1, h2, h3 {
+    color: #fff;
+    scroll-margin-top: 24px;
+  }
+  h1 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+  h1:first-of-type { margin-top: 0; }
+  h2 {
+    margin-top: 2.4em;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+  h3 { margin-top: 1.6em; }
+  a { color: #818cf8; }
+  blockquote {
+    margin: 1em 0;
+    padding: 8px 16px;
+    border-left: 3px solid var(--accent);
+    background: var(--panel);
+    color: var(--text-muted);
+    border-radius: 0 6px 6px 0;
+  }
+  code {
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.875em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    font-size: 0.9em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--panel);
+    color: #fff;
+  }
+  tr:nth-child(even) td {
+    background: rgba(255,255,255,0.02);
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5em 0;
+  }
+  ul, ol { padding-left: 1.4em; }
+  li { margin: 0.25em 0; }
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    nav#toc {
+      width: 100%;
+      height: auto;
+      position: static;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    main { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<nav id="toc">
+<h2>Inhaltsverzeichnis</h2>
+<div class="toc">
+<ul>
+<li><a href="#drucker-benutzer-und-betriebshandbuch">DRUCKER – Benutzer- und Betriebshandbuch</a></li>
+<li><a href="#teil-a-benutzerhandbuch">Teil A – Benutzerhandbuch</a><ul>
+<li><a href="#a1-anmeldung-login">A.1 Anmeldung (Login)</a></li>
+<li><a href="#a2-assets-assets">A.2 Assets (/assets)</a><ul>
+<li><a href="#tabs">Tabs</a></li>
+<li><a href="#filter">Filter</a></li>
+<li><a href="#tabelle">Tabelle</a></li>
+<li><a href="#massenloschung-nur-aktiv-tab">Massenlöschung (nur „Aktiv"-Tab)</a></li>
+<li><a href="#zeilenaktionen">Zeilenaktionen</a></li>
+</ul>
+</li>
+<li><a href="#a3-asset-detail-assetsid">A.3 Asset-Detail (/assets/{id})</a><ul>
+<li><a href="#aktionsleiste">Aktionsleiste</a></li>
+<li><a href="#edit-modal-asset-bearbeiten">Edit-Modal („Asset bearbeiten")</a></li>
+<li><a href="#tabs_1">Tabs</a></li>
+</ul>
+</li>
+<li><a href="#a4-cve-dashboard-cve">A.4 CVE Dashboard (/cve)</a></li>
+<li><a href="#a5-reports-reporting">A.5 Reports (/reporting)</a><ul>
+<li><a href="#globale-aktionen-oben-rechts">Globale Aktionen (oben rechts)</a></li>
+<li><a href="#tab-1-security-posture">Tab 1 – Security Posture</a></li>
+<li><a href="#tab-2-network-exposure">Tab 2 – Network Exposure</a></li>
+<li><a href="#tab-3-sbom-vulnerabilities">Tab 3 – SBOM Vulnerabilities</a></li>
+<li><a href="#tab-4-process-risk">Tab 4 – Process Risk</a></li>
+</ul>
+</li>
+<li><a href="#a6-netzwerke-networks">A.6 Netzwerke (/networks)</a></li>
+<li><a href="#a7-netzwerk-topologie-topology">A.7 Netzwerk-Topologie (/topology)</a></li>
+<li><a href="#a8-business-prozesse-obashi-processes-basis">A.8 Business-Prozesse &amp; OBASHI (/processes, /basis)</a><ul>
+<li><a href="#business-prozesse-processes">Business-Prozesse (/processes)</a></li>
+<li><a href="#basis-editor-basis">BASIS-Editor (/basis)</a></li>
+</ul>
+</li>
+<li><a href="#a9-karteikarten-cards">A.9 Karteikarten (/cards)</a></li>
+<li><a href="#a10-konflikte-conflicts">A.10 Konflikte (/conflicts)</a></li>
+<li><a href="#a11-chatbot-chat">A.11 Chatbot (/chat)</a></li>
+<li><a href="#a12-einstellungen-settings">A.12 Einstellungen (/settings)</a><ul>
+<li><a href="#allgemein-nur-admin">Allgemein (nur Admin)</a></li>
+<li><a href="#benutzer-nur-admin">Benutzer (nur Admin)</a></li>
+<li><a href="#api-keys-alle-benutzer">API-Keys (alle Benutzer)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#teil-b-betriebshandbuch">Teil B – Betriebshandbuch</a><ul>
+<li><a href="#b1-architektur-uberblick">B.1 Architektur-Überblick</a></li>
+<li><a href="#b2-server-setup-erstinstallation">B.2 Server-Setup (Erstinstallation)</a></li>
+<li><a href="#b3-deployment-updates">B.3 Deployment &amp; Updates</a></li>
+<li><a href="#b4-umgebungsvariablen-envprod">B.4 Umgebungsvariablen (.env.prod)</a></li>
+<li><a href="#b5-datenbank-migrationen">B.5 Datenbank &amp; Migrationen</a></li>
+<li><a href="#b6-geplante-aufgaben-cron">B.6 Geplante Aufgaben (Cron)</a><ul>
+<li><a href="#tagliche-asset-snapshots-fur-die-verlaufs-diff-ansicht">Tägliche Asset-Snapshots (für die Verlaufs-/Diff-Ansicht)</a></li>
+<li><a href="#cve-import-nvd-feed">CVE-Import (NVD-Feed)</a></li>
+<li><a href="#kev-import">KEV-Import</a></li>
+<li><a href="#osv-scan-aller-assets">OSV-Scan aller Assets</a></li>
+</ul>
+</li>
+<li><a href="#b7-collectors">B.7 Collectors</a></li>
+<li><a href="#b8-identity-resolver-source-merging-hintergrund">B.8 Identity Resolver &amp; Source-Merging (Hintergrund)</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+</nav>
+<main>
+<h1 id="drucker-benutzer-und-betriebshandbuch">DRUCKER – Benutzer- und Betriebshandbuch</h1>
+<blockquote>
+<p>DRUCKER (Projektname intern: NetAsset) ist eine CMDB (Configuration Management
+Database) mit integrierter Security-Intelligence. Das System sammelt
+Informationen über IT-Assets aus verschiedenen Quellen (Collectors), führt
+CVE-Impact-Analysen durch und bietet eine Web-Oberfläche für Betrieb,
+Inventarisierung und Sicherheitsauswertung.</p>
+</blockquote>
+<p>Dieses Dokument richtet sich an zwei Zielgruppen:</p>
+<ul>
+<li><strong>Teil A – Benutzerhandbuch</strong>: Anwender:innen, die mit der Web-GUI arbeiten
+  (Asset-Verwaltung, Security-Reports, OBASHI/Business-Prozesse, Chatbot).</li>
+<li><strong>Teil B – Betriebshandbuch</strong>: Administrator:innen, die den Server
+  betreiben, deployen und warten (Podman, Caddy, Datenbank, Cron-Jobs,
+  Collectors).</li>
+</ul>
+<hr />
+<h1 id="teil-a-benutzerhandbuch">Teil A – Benutzerhandbuch</h1>
+<h2 id="a1-anmeldung-login">A.1 Anmeldung (Login)</h2>
+<p>Die Startseite ist die Login-Seite. Nach erfolgreicher Anmeldung mit
+Benutzername und Passwort wird man auf <code>/assets</code> weitergeleitet.</p>
+<ul>
+<li>Felder: <strong>Benutzername</strong>, <strong>Passwort</strong></li>
+<li>Button <strong>„Anmelden"</strong> (deaktiviert solange ein Feld leer ist)</li>
+<li>Bei falschen Zugangsdaten: Fehlermeldung „Benutzername oder Passwort
+  falsch"</li>
+</ul>
+<p>Das Login erzeugt ein JWT-Token, das 8 Stunden gültig ist. Danach ist eine
+erneute Anmeldung nötig.</p>
+<p>Es gibt zwei Rollen:</p>
+<ul>
+<li><strong>admin</strong>: voller Zugriff auf alle Assets, Einstellungen, Benutzer­verwaltung</li>
+<li><strong>user</strong>: Zugriff nur auf Assets, deren Tags mit den dem Benutzer
+  zugewiesenen <code>allowed_tags</code> übereinstimmen</li>
+</ul>
+<hr />
+<h2 id="a2-assets-assets">A.2 Assets (<code>/assets</code>)</h2>
+<p>Die zentrale Übersichtsseite über alle erfassten Geräte (Server, Switches,
+Router, Firewalls, Clients, …).</p>
+<h3 id="tabs">Tabs</h3>
+<ul>
+<li><strong>Aktiv</strong>: alle aktiven, nicht archivierten Assets (Standardansicht)</li>
+<li><strong>Archiv</strong>: archivierte Assets (siehe <code>is_archived</code> in der Asset-Detailseite)</li>
+</ul>
+<h3 id="filter">Filter</h3>
+<ul>
+<li>Textsuche (Hostname, IP, FQDN)</li>
+<li>Dropdown <strong>Asset-Typ</strong> (server, switch, router, firewall, client, …)</li>
+<li>Dropdown <strong>Exposure-Level</strong> (INTERN / DMZ / EXTERN)</li>
+<li>Toggle <strong>„Aufmerksamkeit erforderlich"</strong> – zeigt nur Assets, die</li>
+<li>kritische CVEs haben,</li>
+<li>ausstehende Updates/Reboot melden, oder</li>
+<li>länger nicht mehr gesehen wurden (<code>last_seen_at</code> veraltet)</li>
+</ul>
+<h3 id="tabelle">Tabelle</h3>
+<p>Pro Asset: Hostname/IP, Typ, OS, Exposure-Badge, Tags (farblich kodiert),
+„Zuletzt gesehen" (relative Zeitangabe, z.B. „vor 3 Stunden").</p>
+<h3 id="massenloschung-nur-aktiv-tab">Massenlöschung (nur „Aktiv"-Tab)</h3>
+<p>Im Bulk-Delete-Panel können Assets gefiltert und gemeinsam gelöscht werden:</p>
+<ul>
+<li>nach Tagen seit letzter Sichtung (&gt; 7 / 30 / 90 / 180 / 365 Tage)</li>
+<li>„Nie gesehen" (kein <code>last_seen_at</code>)</li>
+<li>nach Tags (Auswahl + freie Eingabe)</li>
+</ul>
+<p>Ablauf: Filter setzen → <strong>Vorschau</strong> der betroffenen Assets → <strong>Bestätigen</strong>
+→ Löschen.</p>
+<h3 id="zeilenaktionen">Zeilenaktionen</h3>
+<p>Pro Asset stehen Icons zum <strong>Archivieren</strong> und <strong>Löschen</strong> zur Verfügung.</p>
+<hr />
+<h2 id="a3-asset-detail-assetsid">A.3 Asset-Detail (<code>/assets/{id}</code>)</h2>
+<p>Detailansicht eines einzelnen Assets. Seitentitel = Hostname oder
+IP-Adresse.</p>
+<h3 id="aktionsleiste">Aktionsleiste</h3>
+<ul>
+<li><strong>„CVE-Scan"</strong> – stößt einen OSV-Scan (Open Source Vulnerabilities) für
+  dieses Asset an (<code>POST /api/v1/cve/osv/scan/asset/{id}</code>). Kostenlos,
+  benötigt keinen API-Key. Vergleicht installierte SBOM-Pakete gegen die
+  OSV-Datenbank, legt neue CVE-Einträge an und aktualisiert die
+  Risikobewertung. Sinnvoll, um nach einem Software-Update oder nach Ändern
+  von Einstellungen wie „Als VM/VPS werten" eine sofortige Neubewertung zu
+  erzwingen.</li>
+<li><strong>„Bearbeiten"</strong> – öffnet das Edit-Modal (siehe unten)</li>
+<li><strong>„Löschen"</strong> – löscht das Asset endgültig (mit Bestätigungsdialog)</li>
+</ul>
+<h3 id="edit-modal-asset-bearbeiten">Edit-Modal („Asset bearbeiten")</h3>
+<table>
+<thead>
+<tr>
+<th>Feld</th>
+<th>Beschreibung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hostname, IP-Adresse, FQDN, MAC-Adresse</td>
+<td>Basis-Identifikationsdaten</td>
+</tr>
+<tr>
+<td>Weitere IP-Adressen</td>
+<td>Tag-Liste, z.B. WAN-IP, Management-IP</td>
+</tr>
+<tr>
+<td>OS Name, OS Version, Standort, Asset-Typ</td>
+<td>Inventardaten</td>
+</tr>
+<tr>
+<td><strong>Exposure Level</strong></td>
+<td>INTERN / DMZ / EXTERN – steuert Risiko-Gewichtung der CVEs</td>
+</tr>
+<tr>
+<td><strong>Netzwerk-Zonen</strong></td>
+<td>Tag-Liste, z.B. INTERN, DMZ, Heimnetz, Office-LAN (kein CIDR, nur Bezeichnung)</td>
+</tr>
+<tr>
+<td><strong>Tags</strong></td>
+<td>Beliebige Labels, u.a. für Zugriffskontrolle (<code>allowed_tags</code>)</td>
+</tr>
+<tr>
+<td><strong>Mindest-Konfidenz</strong></td>
+<td>Slider 0.00–1.00. Steuert, ab welcher Match-Konfidenz automatische Updates aus Discovery-Quellen übernommen werden: 0.00 = alle Matches, 0.80 = mind. 2 weiche Schlüssel (Hostname/IP/FQDN), 0.95 = stabiler Schlüssel (MAC/Seriennummer), 1.00 = nur exakter UUID-Match</td>
+</tr>
+<tr>
+<td><strong>„Als VM/VPS werten"</strong> (force_vm)</td>
+<td>Erzwingt die VM-Erkennung für dieses Asset, unabhängig von Tags/Hersteller. Wirkung: Microcode-/Firmware-CVEs (z.B. <code>intel-microcode</code>, <code>amd64-microcode</code>, <code>linux-firmware</code>) gelten als nicht exploitierbar und werden – sofern die globale Einstellung „Microcode-Updates für VMs/VPS ausblenden" aktiv ist (siehe <a href="#a10-einstellungen-settings">A.10</a>) – komplett aus den CVE-Listen entfernt</td>
+</tr>
+<tr>
+<td><strong>„Archivieren"</strong> (is_archived)</td>
+<td>Asset aus aktiven Listen, Reports und Diagrammen ausblenden, ohne es zu löschen. Wird unter dem Archiv-Tab weiter angezeigt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="tabs_1">Tabs</h3>
+<ol>
+<li><strong>Details</strong>
+   - Info-Grid: Typ, OS, IP-Adressen, MAC-Adresse
+   - Netzwerk-Zonen als farbige Badges (EXTERN rot, DMZ gelb, INTERN blau)
+   - <strong>CVE-Scan-Ergebnis</strong>: Anzahl geprüfter Pakete, gefundene
+     Schwachstellen, neue CVEs – mit aufklappbaren Paket- und CVE-Listen
+   - <strong>CVE-Risiken</strong>: Top-CVEs, getrennt nach „Software/Pakete" (SBOM-Treffer)
+     und „Netzwerk/System" (Port-bezogen), inkl. Risk-Level, KEV-Flag und
+     betroffenem Paket
+   - <strong>Offene Ports</strong>: Tabelle mit Port, Protokoll, „Erreichbar von"
+     (internet/intern/…)
+   - <strong>SBOM</strong>: aufklappbare, durchsuchbare Paketliste (Paket, Version, Typ,
+     Quelle)</li>
+<li><strong>Verlauf</strong> – Snapshot-Timeline mit täglichen Änderungen (max. 30 Tage),
+   Diff-Ansicht zwischen zwei Zeitpunkten</li>
+<li><strong>Reports</strong> – hochgeladene Lynis-/Audit-Reports für dieses Asset</li>
+<li><strong>Karteikarte</strong> – Vorschau der Export-„Karteikarte" (siehe
+   <a href="#a9-karteikarten-cards">A.9 Karteikarten</a>) mit Template-Auswahl
+   (Vollständig, Security, Inventar, Netzwerk, Minimal) und
+   Markdown-Download</li>
+</ol>
+<hr />
+<h2 id="a4-cve-dashboard-cve">A.4 CVE Dashboard (<code>/cve</code>)</h2>
+<p>Zentrale Sicht auf alle bekannten CVEs.</p>
+<ul>
+<li><strong>Filter-Suche</strong>: CVE-ID oder Stichwort</li>
+<li><strong>Semantische Suche</strong>: Freitext über RAG/Embeddings (z.B. „openssl buffer
+  overflow")</li>
+<li><strong>Tabs</strong>: „Betroffene Assets" (nur CVEs mit aktivem Treffer) / „Alle CVEs"</li>
+<li>Pro CVE: CVE-ID, Severity-Badge, CVSS-Score, KEV-Kennzeichnung, Anzahl und
+  Liste betroffener Hostnamen</li>
+<li><strong>Impact-Panel</strong> (rechts): nach Auswahl einer CVE werden betroffene Assets
+  (Hostname, Exposure, Paket+Version, Risk-Level/Score) sowie eine optionale
+  KI-Analyse angezeigt</li>
+</ul>
+<blockquote>
+<p>Hinweis: Microcode-/Firmware-CVEs auf Assets, die als VM/VPS gelten, werden
+hier – sofern in den Einstellungen aktiviert – nicht mehr aufgeführt, da sie
+vom Hypervisor-Host und nicht vom Gast-System verwaltet werden.</p>
+</blockquote>
+<hr />
+<h2 id="a5-reports-reporting">A.5 Reports (<code>/reporting</code>)</h2>
+<p>Vier strukturierte Security-Reports als Tabs, jeweils mit Aktualisieren- und
+„KI-Zusammenfassung generieren"-Button (Sparkles-Icon, max. 200 Token,
+optional/non-blocking).</p>
+<h3 id="globale-aktionen-oben-rechts">Globale Aktionen (oben rechts)</h3>
+<ul>
+<li><strong>„OSV-Scan"</strong> – scannt alle aktiven Assets mit SBOM gegen OSV
+  (<code>POST /api/v1/cve/osv/scan/all</code>)</li>
+<li><strong>„CISA KEV"</strong> – importiert die CISA Known-Exploited-Vulnerabilities-Liste</li>
+<li><strong>„KEV-Datei"</strong> – manueller Upload des KEV-Katalogs als JSON
+  (https://www.cisa.gov/known-exploited-vulnerabilities-catalog)</li>
+</ul>
+<h3 id="tab-1-security-posture">Tab 1 – Security Posture</h3>
+<p>Gesamtübersicht: Anzahl Assets, HIGH/MEDIUM CVEs, „Stale"-Assets
+(&gt; 24h nicht gesehen), Verteilung nach Exposure-Level und Asset-Typ,
+kritische extern erreichbare Assets mit HIGH-CVEs (klickbar →
+Asset-Detail), Top-10-Risiko-Assets.</p>
+<h3 id="tab-2-network-exposure">Tab 2 – Network Exposure</h3>
+<p>Anzahl EXTERN-/DMZ-Assets, Internet-erreichbare Ports, häufigste
+Internet-Ports, Liste exponierter Assets nach Risiko sortiert (Zone,
+Internet-Ports, HIGH-CVEs, Risk-Score).</p>
+<h3 id="tab-3-sbom-vulnerabilities">Tab 3 – SBOM Vulnerabilities</h3>
+<p>Anzahl geprüfter Pakete, verwundbare Pakete, kritische Funde; Tabelle der
+verwundbaren Pakete mit CVE, CVSS, Schweregrad und betroffenen Assets.</p>
+<h3 id="tab-4-process-risk">Tab 4 – Process Risk</h3>
+<p>CVE-Risiko pro Business-Prozess: Risiko-Badge, Kritikalität (1–5-Balken),
+Anzahl betroffener Assets, Verteilung HIGH/MEDIUM/LOW, Top-CVE.</p>
+<hr />
+<h2 id="a6-netzwerke-networks">A.6 Netzwerke (<code>/networks</code>)</h2>
+<p>Verwaltung von IP-Netzwerken (CIDR) und deren automatischer
+Asset-Zuordnung.</p>
+<ul>
+<li>Statistik: Anzahl definierter Netze, zugeordnete Assets, leere Netze</li>
+<li><strong>„Netzwerk hinzufügen"</strong>: Name, CIDR, Exposure-Level, Farbe,
+  optionaler Gateway-Router, Beschreibung</li>
+<li>Pro Netz: Farbpunkt, Name + CIDR, Gateway (falls gesetzt),
+  Exposure-Badge, Asset-Anzahl (aufklappbar → Liste der zugeordneten Assets,
+  klickbar zur Detailseite), Bearbeiten-/Löschen-Icons</li>
+<li><strong>„Reclassify"</strong>: ordnet alle Assets erneut anhand ihrer IP-Adresse den
+  passenden CIDR-Netzen zu (<code>POST /api/v1/networks/reclassify</code>)</li>
+</ul>
+<hr />
+<h2 id="a7-netzwerk-topologie-topology">A.7 Netzwerk-Topologie (<code>/topology</code>)</h2>
+<p>Visuelle Darstellung der Netzwerksegmente und ihrer Übergänge
+(Router/Firewalls als Gateways).</p>
+<ul>
+<li><strong>„Auto-Erkennen"</strong>: erkennt automatisch Router/Firewalls, die mehrere
+  Netzwerk-Zonen verbinden, und schlägt Gateways vor</li>
+<li><strong>„Gateway hinzufügen"</strong>: Gerät (Router/Firewall/Switch), Name,
+  Von-/Zu-Segment, Option „Primärer Gateway" (wird im Diagramm gold
+  hervorgehoben)</li>
+<li>Diagramm: Segmente farbcodiert (EXTERN rot, DMZ gelb, INTERN blau,
+  MGMT grün, GUEST lila) mit Verbindungslinien</li>
+<li>Übersicht: Anzahl verbundener Gateways, Anzahl isolierter Segmente</li>
+<li>Gateway-Liste mit Von→Zu-Segment, Name, IP/Hostname,
+  Primär-Kennzeichnung (★), Löschen-Button</li>
+</ul>
+<hr />
+<h2 id="a8-business-prozesse-obashi-processes-basis">A.8 Business-Prozesse &amp; OBASHI (<code>/processes</code>, <code>/basis</code>)</h2>
+<p>DRUCKER bildet die OBASHI-Schichten ab:</p>
+<pre><code>O – Owners        Person/Team/Abteilung/Rolle
+B – Business      Prozess, Kritikalität (1–5), RTO/RPO
+A – Application   Fachliche Anwendung (z.B. Webshop, CRM)
+S – System        OS, Middleware, SBOM-Software
+H – Hardware      Asset (Server, Switch, …)
+I – Infrastructure Netzwerk, Exposure, Ports
+</code></pre>
+<h3 id="business-prozesse-processes">Business-Prozesse (<code>/processes</code>)</h3>
+<ul>
+<li><strong>„Owner verwalten"</strong>: Owner anlegen (Name, E-Mail, Team, Abteilung,
+  Rolle) und löschen</li>
+<li>Pro Prozess (aufklappbar): Name, Owner-Badge, Kritikalitäts-Balken
+  (1–5), RTO in Stunden</li>
+<li><strong>Sub-Tabs je Prozess</strong>:</li>
+<li><strong>BASIS</strong> – OBASHI-Diagramm des Prozesses</li>
+<li><strong>Anwendungen</strong> – Liste der zugeordneten Applications mit Icon (🌐 web,
+    ⚡ api, ⚙ batch, 🔗 integration, 🔧 service, 🖥 desktop, 📱 mobile,
+    📦 other), „Neue App"-Button, Löschen pro App</li>
+<li><strong>CVE-Risiko</strong> – HIGH/MEDIUM/LOW-Verteilung, Top-CVEs, zugehörige Assets
+    mit Exposure-Level</li>
+<li>Inline Owner-Auswahl per Dropdown</li>
+</ul>
+<h3 id="basis-editor-basis">BASIS-Editor (<code>/basis</code>)</h3>
+<p>Detaillierter, dreispaltiger Editor:</p>
+<ul>
+<li><strong>Links</strong>: Baum aus Owners (O), Business-Prozessen (B) mit zugeordneten
+  Applications (A) – jeweils mit Hinzufügen-/Löschen-Aktionen</li>
+<li><strong>Mitte</strong>: Editor je nach Auswahl</li>
+<li>Prozess: Name, Beschreibung, Kritikalität, RTO/RPO, Owner</li>
+<li>Anwendung: Name, App-Typ, Version, URL, Owner, Kritikalität,
+    Verknüpfung mit Assets (Suchfeld + Checkboxen), SBOM-Vorschau des
+    verknüpften Assets</li>
+<li>Owner: Name, Team, Abteilung, Rolle</li>
+<li><strong>Rechts</strong>: BASIS-Layer-Vorschau der ausgewählten Anwendung – zeigt
+  Application (Name/Version), System (OS + Top-5-Pakete aus SBOM),
+  Hardware (Hostname, Typ je verknüpftem Asset) und Infrastructure
+  (Exposure-Level, Top-Ports/Protokoll)</li>
+</ul>
+<hr />
+<h2 id="a9-karteikarten-cards">A.9 Karteikarten (<code>/cards</code>)</h2>
+<p>Batch-Export von Asset-Daten als „Karteikarten" – aufbereitete
+Markdown-/JSON-/Text-Dateien, z.B. für RAG-Systeme oder LLM-Training.</p>
+<ul>
+<li><strong>Template-Auswahl</strong> (Radio-Buttons), z.B. Vollständig, Security-fokussiert,
+  Inventar – jedes Template definiert enthaltene Sektionen (Basis-Infos,
+  Netzwerk, Ports, SBOM, CVE-Risiken, Business-Kontext, Lynis-Audit,
+  Metadaten)</li>
+<li><strong>Format</strong>: Markdown (für RAG), JSON+JSONL (für LLM-Training), Plaintext</li>
+<li><strong>Filter</strong> (optional): Asset-Typ, Exposure-Level, Tag</li>
+<li><strong>„Als ZIP exportieren"</strong>: erzeugt einen Download mit einer Datei pro Asset</li>
+</ul>
+<p>Eine Einzelvorschau pro Asset findet sich im Tab „Karteikarte" der
+Asset-Detailseite (<a href="#a3-asset-detail-assetsid">A.3</a>).</p>
+<hr />
+<h2 id="a10-konflikte-conflicts">A.10 Konflikte (<code>/conflicts</code>)</h2>
+<p>Manuelle Auflösung von Identitäts-Konflikten, die beim automatischen
+Daten-Merging aus mehreren Quellen entstehen (z.B. ein neues Discovery-Event
+lässt sich nicht eindeutig einem bestehenden Asset zuordnen).</p>
+<ul>
+<li><strong>Status-Filter</strong>: Offen / Zusammengeführt / Neu angelegt / Verworfen</li>
+<li>Nur Admins: <strong>„Alle löschen"</strong></li>
+<li>Pro Konflikt (aufklappbar):</li>
+<li>Header: Hostname/IP/MAC, Quelle, Konfidenz in %, Match-Felder</li>
+<li>Aufgeklappt: Side-by-side-Vergleich „Eingehende Daten (neu)" vs.
+    „Möglicher Kandidat (bestehend)"</li>
+<li><strong>Aktionen</strong>:<ul>
+<li><strong>„Zusammenführen"</strong>: Eingabe der Ziel-Asset-ID</li>
+<li><strong>„Als neues Asset anlegen"</strong></li>
+<li><strong>„Verwerfen"</strong></li>
+</ul>
+</li>
+</ul>
+<p>Ein Badge in der Sidebar zeigt die Anzahl offener Konflikte.</p>
+<hr />
+<h2 id="a11-chatbot-chat">A.11 Chatbot (<code>/chat</code>)</h2>
+<p>RAG-basierter Chat über die echten CMDB-Daten („striktes RAG" – das LLM
+antwortet ausschließlich auf Basis der in der Datenbank vorhandenen
+Asset- und CVE-Daten, keine Halluzinationen).</p>
+<ul>
+<li>Info-Banner: „Alle Antworten basieren auf echten Asset-Daten deiner CMDB"</li>
+<li>Vorgeschlagene Beispiel-Fragen, u.a.:</li>
+<li>„Welche Systeme sind von außen erreichbar und haben bekannte
+    Schwachstellen?"</li>
+<li>„Welche Softwareversionen sind auf den Webservern installiert?"</li>
+<li>„Auf welchen Systemen läuft OpenSSL und in welcher Version?"</li>
+<li>Antworten zeigen Quellenangaben (verwendete Assets, durchsuchte CVEs,
+  Größe des Kontexts) zur Nachvollziehbarkeit</li>
+</ul>
+<hr />
+<h2 id="a12-einstellungen-settings">A.12 Einstellungen (<code>/settings</code>)</h2>
+<h3 id="allgemein-nur-admin">Allgemein (nur Admin)</h3>
+<ul>
+<li><strong>Toggle „Microcode-Updates für VMs/VPS ausblenden"</strong>
+  (<code>hide_vm_microcode_cves</code>, Standard: aktiv)</li>
+</ul>
+<p>Wenn aktiviert, werden CVEs zu <code>intel-microcode</code>, <code>amd64-microcode</code>,
+  <code>linux-firmware</code>, <code>iucode-tool</code> sowie Pakete mit dem Präfix <code>firmware-</code>
+  für Assets, die als VM/VPS erkannt werden, <strong>vollständig aus allen
+  CVE-Listen entfernt</strong> (nicht nur herabgestuft) – Begründung: Microcode wird
+  vom Hypervisor-Host geladen, nicht vom Gast-Betriebssystem, daher ist die
+  CVE auf der Gast-Ebene nicht relevant. Die Filterung wirkt sofort
+  (live), ohne dass ein erneuter CVE-Scan nötig ist.</p>
+<p>Ob ein Asset als VM/VPS gilt, wird automatisch anhand von Tags
+  (<code>vm</code>, <code>virtual</code>, <code>kvm</code>, <code>vmware</code>, <code>docker</code>, …) und
+  Hersteller-/Modellfeldern erkannt – oder lässt sich pro Asset über den
+  Schalter <strong>„Als VM/VPS werten"</strong> im Edit-Modal erzwingen
+  (siehe <a href="#a3-asset-detail-assetsid">A.3</a>).</p>
+<h3 id="benutzer-nur-admin">Benutzer (nur Admin)</h3>
+<ul>
+<li><strong>„Neuer User"</strong>: Benutzername, Passwort, Rolle (<code>user</code>/<code>admin</code>),
+  erlaubte Tags (leer = Zugriff auf alle Assets)</li>
+<li>Tabelle aller Benutzer: Username (+E-Mail), Rollen-Badge, Tags,
+  Löschen-Button</li>
+</ul>
+<h3 id="api-keys-alle-benutzer">API-Keys (alle Benutzer)</h3>
+<ul>
+<li>Eingabe eines Namens (z.B. <code>linux-server</code>) und <strong>„Key erstellen"</strong></li>
+<li>Der vollständige Schlüssel (<code>sk-na-...</code>) wird <strong>nur einmal</strong> angezeigt –
+  unbedingt kopieren und in der Collector-Konfiguration
+  (<code>netasset_collector.conf</code> → <code>api_key = ...</code>) hinterlegen</li>
+<li>Tabelle aktiver Keys: Name, Präfix, erlaubte Tags (oder „alle"),
+  zuletzt benutzt, Status (aktiv/inaktiv), Löschen-Button</li>
+</ul>
+<p>API-Key-Tags können enger gefasst sein als die Tags des erstellenden
+Benutzers, um den Zugriff einzelner Collectors granular einzuschränken.</p>
+<hr />
+<h1 id="teil-b-betriebshandbuch">Teil B – Betriebshandbuch</h1>
+<h2 id="b1-architektur-uberblick">B.1 Architektur-Überblick</h2>
+<table>
+<thead>
+<tr>
+<th>Komponente</th>
+<th>Technologie</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Backend API</td>
+<td>FastAPI (Python 3.12)</td>
+</tr>
+<tr>
+<td>Datenbank</td>
+<td>PostgreSQL 16 + pgvector Extension</td>
+</tr>
+<tr>
+<td>Embeddings</td>
+<td>sentence-transformers (lokal)</td>
+</tr>
+<tr>
+<td>LLM</td>
+<td>OpenRouter API (modell-agnostisch)</td>
+</tr>
+<tr>
+<td>CVE-Quelle</td>
+<td>NVD JSON 2.0 Feed + OSV + CISA KEV</td>
+</tr>
+<tr>
+<td>Migrationen</td>
+<td>Alembic (async)</td>
+</tr>
+<tr>
+<td>Container</td>
+<td>Podman + Caddy (HTTPS/TLS)</td>
+</tr>
+<tr>
+<td>Frontend</td>
+<td>React + Vite + Tailwind CSS</td>
+</tr>
+</tbody>
+</table>
+<p>Die Container laufen als Podman-Pod (<code>netasset</code>) mit drei Diensten:</p>
+<ul>
+<li><strong>db</strong> – <code>pgvector/pgvector:pg16</code>, persistiertes Volume <code>pgdata</code>,
+  Healthcheck via <code>pg_isready</code></li>
+<li><strong>api</strong> – das FastAPI-Backend (Image <code>localhost/netasset-api:latest</code>),
+  startet erst wenn <code>db</code> „healthy" ist</li>
+<li><strong>caddy</strong> – Reverse Proxy mit automatischem HTTPS (Ports 80/443 + 443/udp
+  für HTTP/3), Volumes <code>caddy_data</code>/<code>caddy_config</code>, liest die
+  <code>Caddyfile</code></li>
+</ul>
+<hr />
+<h2 id="b2-server-setup-erstinstallation">B.2 Server-Setup (Erstinstallation)</h2>
+<pre><code class="language-bash">bash scripts/server_setup.sh
+</code></pre>
+<p>Richtet die Grundvoraussetzungen auf dem Server ein (Podman, Verzeichnisse
+unter <code>/opt/netasset</code>, <code>.env.prod</code>-Vorlage, etc.).</p>
+<p>Anschließend Erststart aller Container, Volumes und initialer Migrationen:</p>
+<pre><code class="language-bash">bash scripts/deploy.sh start
+</code></pre>
+<p><code>cmd_start</code> erstellt den Pod, die Volumes, startet <code>db</code>/<code>api</code>/<code>caddy</code> und
+führt <code>alembic upgrade head</code> aus.</p>
+<hr />
+<h2 id="b3-deployment-updates">B.3 Deployment &amp; Updates</h2>
+<pre><code class="language-bash">bash scripts/deploy.sh {start|deploy|stop|status}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Befehl</th>
+<th>Wirkung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>start</code></td>
+<td>Initiales Setup: Pod, Volumes, alle Container, Migrationen</td>
+</tr>
+<tr>
+<td><code>deploy</code></td>
+<td>Update: <code>git pull</code>, Frontend-Build (<code>npm ci &amp;&amp; npm run build</code>, falls npm verfügbar), <code>podman build -t localhost/netasset-api:latest .</code>, API-Container neu starten, <code>alembic upgrade head</code> (über temporären Container), <code>podman image prune -f</code></td>
+</tr>
+<tr>
+<td><code>stop</code></td>
+<td>Stoppt alle Container des Pods</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>Zeigt Status von Pod und Containern</td>
+</tr>
+</tbody>
+</table>
+<p>Konstanten in <code>scripts/deploy.sh</code>:</p>
+<ul>
+<li><code>INSTALL_DIR=/opt/netasset</code></li>
+<li><code>ENV_FILE=$INSTALL_DIR/.env.prod</code></li>
+<li><code>POD_NAME=netasset</code></li>
+<li><code>API_IMAGE=localhost/netasset-api:latest</code></li>
+</ul>
+<p><strong>Standard-Update-Workflow</strong> auf dem Server:</p>
+<pre><code class="language-bash">cd /opt/netasset
+bash scripts/deploy.sh deploy
+</code></pre>
+<blockquote>
+<p>Wichtig: Neue Datenbankänderungen müssen immer als <strong>neue</strong>
+Alembic-Migration mit eigener Revision-ID angelegt werden (nächste freie
+Nummer in <code>migrations/versions/</code>). Eine bereits angewendete
+Migrationsdatei nachträglich zu ändern, bewirkt <strong>keine</strong> erneute
+Ausführung – <code>alembic upgrade head</code> führt nur Migrationen aus, deren
+Revision noch nicht in der <code>alembic_version</code>-Tabelle vermerkt ist.</p>
+</blockquote>
+<hr />
+<h2 id="b4-umgebungsvariablen-envprod">B.4 Umgebungsvariablen (<code>.env.prod</code>)</h2>
+<p>Liegt unter <code>/opt/netasset/.env.prod</code> und wird von <code>docker-compose.prod.yml</code>
+in den <code>api</code>-Container injiziert:</p>
+<pre><code class="language-env">DATABASE_URL=postgresql+asyncpg://netasset:PASS@localhost:5432/netasset
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL=anthropic/claude-sonnet-4-5
+NVD_API_KEY=                    # Optional, erhöht Rate-Limit
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+JWT_SECRET=                     # 32+ zufällige Zeichen
+INITIAL_ADMIN_PASSWORD=         # Wird beim ersten Start gesetzt
+DOMAIN=ocs.kiste.org
+LOG_LEVEL=INFO
+</code></pre>
+<p><code>INITIAL_ADMIN_PASSWORD</code> wird nur beim allerersten Start verwendet, um den
+<code>admin</code>-Benutzer anzulegen. Danach sollte das Passwort über die GUI
+(„Einstellungen → Benutzer") geändert werden.</p>
+<hr />
+<h2 id="b5-datenbank-migrationen">B.5 Datenbank &amp; Migrationen</h2>
+<ul>
+<li>Alembic-Migrationskette unter <code>migrations/versions/</code> (aktuell 0001–0018)</li>
+<li>Manuell ausführen (z.B. zur Fehlersuche):</li>
+</ul>
+<pre><code class="language-bash">podman exec -it netasset-api alembic upgrade head
+podman exec -it netasset-api alembic current
+podman exec -it netasset-api alembic history
+</code></pre>
+<ul>
+<li><code>alembic upgrade head</code> wird automatisch bei <code>deploy.sh deploy</code> und
+  <code>deploy.sh start</code> ausgeführt.</li>
+</ul>
+<hr />
+<h2 id="b6-geplante-aufgaben-cron">B.6 Geplante Aufgaben (Cron)</h2>
+<h3 id="tagliche-asset-snapshots-fur-die-verlaufs-diff-ansicht">Tägliche Asset-Snapshots (für die Verlaufs-/Diff-Ansicht)</h3>
+<pre><code class="language-bash">python scripts/daily_snapshots.py
+</code></pre>
+<p>Empfohlen: Cron-Job um 02:00 Uhr. Erstellt für jedes aktive Asset einen
+Snapshot des aktuellen Zustands (max. 30 pro Asset, älteste werden
+rotiert).</p>
+<h3 id="cve-import-nvd-feed">CVE-Import (NVD-Feed)</h3>
+<pre><code class="language-bash">python scripts/import_cves.py --days 7
+</code></pre>
+<p>Importiert neue/aktualisierte CVEs der letzten N Tage aus dem NVD JSON
+2.0 Feed inkl. Embeddings für die semantische Suche. Mit <code>NVD_API_KEY</code>
+deutlich höheres Rate-Limit.</p>
+<h3 id="kev-import">KEV-Import</h3>
+<p>Kann manuell über die GUI angestoßen werden („Reports → CISA KEV"), oder per
+API (<code>POST /api/v1/cve/kev/import</code>). Kein API-Key erforderlich.</p>
+<h3 id="osv-scan-aller-assets">OSV-Scan aller Assets</h3>
+<p>GUI-Button „Reports → OSV-Scan" bzw. <code>POST /api/v1/cve/osv/scan/all</code> –
+prüft alle aktiven Assets mit SBOM gegen die OSV-Datenbank. Kann ebenfalls
+periodisch per Cron über die API getriggert werden, falls gewünscht.</p>
+<hr />
+<h2 id="b7-collectors">B.7 Collectors</h2>
+<p>Separates Repository: <code>github.com/hanswurst1805/drucker-collectors</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Collector</th>
+<th>Plattform</th>
+<th>Protokoll</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>netasset_collector.py</code></td>
+<td>Linux/Windows/macOS</td>
+<td>osquery</td>
+</tr>
+<tr>
+<td><code>mikrotik_collector.py</code></td>
+<td>MikroTik Router/Switch</td>
+<td>REST API (7.1+) / SNMP</td>
+</tr>
+<tr>
+<td><code>fritzbox_collector.py</code></td>
+<td>AVM Fritz!Box</td>
+<td>TR-064 (fritzconnection)</td>
+</tr>
+<tr>
+<td><code>network_discovery_agent.py</code></td>
+<td>Netzwerk</td>
+<td>nmap</td>
+</tr>
+<tr>
+<td><code>lynis_collector.py</code></td>
+<td>Linux</td>
+<td>Lynis lynis-report.dat</td>
+</tr>
+</tbody>
+</table>
+<p>Installation über <code>install_linux.sh</code>, <code>install_macos.sh</code> bzw.
+<code>install_windows.ps1</code>. Konfiguration über <code>*.conf</code>-Dateien
+(Vorlagen: <code>*.conf.example</code>).</p>
+<p><strong>Konfigurations-Hierarchie</strong> (für alle Collectors, in absteigender
+Priorität):</p>
+<ol>
+<li>CLI-Flag</li>
+<li>Umgebungsvariable</li>
+<li>Konfigurationsdatei</li>
+<li>Auto-Detect</li>
+</ol>
+<p>Jeder Collector benötigt einen API-Key (<code>sk-na-...</code>), der unter
+„Einstellungen → API-Keys" erstellt wird (siehe <a href="#a12-einstellungen-settings">A.12</a>).
+Über die API-Key-Tags lässt sich steuern, welche Assets ein Collector sehen
+bzw. aktualisieren darf.</p>
+<hr />
+<h2 id="b8-identity-resolver-source-merging-hintergrund">B.8 Identity Resolver &amp; Source-Merging (Hintergrund)</h2>
+<p>Beim Discovery-Ingest (<code>POST /api/v1/discovery/ingest</code>) versucht das System,
+eingehende Daten einem bestehenden Asset zuzuordnen:</p>
+<p><strong>Matching-Priorität:</strong></p>
+<ol>
+<li><code>internal_uuid</code> – Konfidenz 1.0</li>
+<li>Stabile Schlüssel (<code>mac_address</code>, <code>serial_number</code>, <code>chassis_id</code>) – 0.95</li>
+<li>2+ weiche Schlüssel (<code>hostname</code>, <code>ip_address</code>, <code>fqdn</code>) – 0.80</li>
+<li>1 weicher Schlüssel → landet in der Conflict Queue – 0.40–0.50</li>
+</ol>
+<p><strong>Merge-Strategie:</strong></p>
+<ul>
+<li><code>SOURCE_PRIORITY</code>: osquery (80) &gt; mikrotik (70) &gt; nmap (50) &gt; arp (30)</li>
+<li>Felder werden nur überschrieben, wenn die neue Quelle eine höhere Priorität
+  hat als die zuletzt setzende Quelle</li>
+<li><code>open_ports</code>: Vereinigung aller Quellen (wird addiert, nie überschrieben)</li>
+<li><code>tags</code>: immer additiv</li>
+<li><code>min_confidence</code> pro Asset (siehe <a href="#a3-asset-detail-assetsid">A.3</a>):
+  Matches mit niedrigerer Konfidenz werden komplett ignoriert (auch für die
+  Conflict Queue)</li>
+</ul>
+<p>Treffer mit Konfidenz &lt; <code>min_confidence</code> und ≥ 0.40 landen in der
+<strong>Conflict Queue</strong> (<code>/conflicts</code>, siehe <a href="#a10-konflikte-conflicts">A.10</a>)
+zur manuellen Entscheidung (zusammenführen / neu anlegen / verwerfen).</p>
+</main>
+</body>
+</html>
