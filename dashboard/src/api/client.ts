@@ -48,7 +48,7 @@ export interface Asset {
   open_ports: { port: number; proto: string; reachable_from: string[] }[] | null
   tags: string[] | null
   is_active: boolean
-  is_obsolete: boolean
+  is_archived: boolean
   needs_attention: boolean
   attention_reasons: string[]
 }

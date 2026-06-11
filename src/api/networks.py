@@ -69,7 +69,7 @@ async def list_networks(
         count_result = await session.execute(
             select(func.count()).where(
                 Asset.is_active == True,
-                Asset.is_obsolete == False,
+                Asset.is_archived == False,
                 or_(
                     Asset.network_id == net.id,
                     Asset.network_zones.contains([net.name]),
@@ -121,7 +121,7 @@ async def create_network(
     assets_result = await session.execute(
         select(Asset).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.ip_address.is_not(None),
         )
     )
@@ -168,7 +168,7 @@ async def update_network(
         select(func.count()).where(
             Asset.network_id == net.id,
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
         )
     )).scalar() or 0
 
@@ -198,7 +198,7 @@ async def reclassify(
     total_result = await session.execute(
         select(func.count()).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.ip_address.is_not(None),
         )
     )
@@ -221,7 +221,7 @@ async def network_assets(
     result = await session.execute(
         select(Asset).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             or_(
                 Asset.network_id == network_id,
                 Asset.network_zones.contains([net.name]),

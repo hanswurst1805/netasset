@@ -115,7 +115,7 @@ async def reclassify_all(session: AsyncSession) -> int:
     assets = (await session.execute(
         select(Asset).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.ip_address.is_not(None),
             Asset.ip_address != "",
         )

@@ -78,7 +78,7 @@ async def security_posture(
     session: AsyncSession = Depends(get_session),
     ctx: AuthContext = Depends(get_current_user),
 ):
-    stmt = select(Asset).where(Asset.is_active == True, Asset.is_obsolete == False)
+    stmt = select(Asset).where(Asset.is_active == True, Asset.is_archived == False)
     if tag_filter := ctx.filter_tags():
         stmt = stmt.where(Asset.tags.overlap(tag_filter))
     result = await session.execute(stmt.options(selectinload(Asset.cve_impacts)))
@@ -172,7 +172,7 @@ async def network_exposure(
         select(Asset)
         .where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.exposure_level.in_(["EXTERN", "DMZ"]),
         )
         .options(selectinload(Asset.cve_impacts))
@@ -269,7 +269,7 @@ async def sbom_vulnerabilities(
     pkg_names: set[str] = set()
 
     for imp in impacts:
-        if not imp.asset or not imp.asset.is_active or imp.asset.is_obsolete:
+        if not imp.asset or not imp.asset.is_active or imp.asset.is_archived:
             continue
         if tag_filter := ctx.filter_tags():
             if not imp.asset.tags or not set(imp.asset.tags) & set(tag_filter):
@@ -342,14 +342,14 @@ async def process_risk(
     findings: list[ProcessRiskItem] = []
 
     for proc in processes:
-        # Asset-IDs des Prozesses (nur aktive, nicht-obsolete Assets)
+        # Asset-IDs des Prozesses (nur aktive, nicht-archivierte Assets)
         pa_result = await session.execute(
             select(ProcessAsset.asset_id)
             .join(Asset, Asset.id == ProcessAsset.asset_id)
             .where(
                 ProcessAsset.process_id == proc.id,
                 Asset.is_active == True,
-                Asset.is_obsolete == False,
+                Asset.is_archived == False,
             )
         )
         asset_ids = [row[0] for row in pa_result]

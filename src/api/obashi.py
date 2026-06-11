@@ -203,7 +203,7 @@ async def get_obashi(
             .where(
                 Asset.id.in_([_uuid.UUID(aid) for aid in all_asset_ids]),
                 Asset.is_active == True,
-                Asset.is_obsolete == False,
+                Asset.is_archived == False,
             )
             .options(selectinload(Asset.sbom_entries))
         )

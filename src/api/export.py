@@ -333,9 +333,9 @@ async def export_systems(
     """
     Systemliste für den Betriebsleitfaden.
     Enthält alle Systeme mit Netzwerk, Kontakten, Prozessen und Sicherheitsstatus.
-    Als obsolet markierte Systeme werden nicht aufgeführt.
+    Archivierte Systeme werden nicht aufgeführt.
     """
-    stmt = select(Asset).where(Asset.is_active == True, Asset.is_obsolete == False)
+    stmt = select(Asset).where(Asset.is_active == True, Asset.is_archived == False)
 
     if exposure:
         stmt = stmt.where(Asset.exposure_level == exposure)
@@ -388,7 +388,7 @@ async def export_systems_csv(
     ctx: AuthContext = Depends(get_current_user),
 ):
     """CSV-Export für direkte Tabellenimports."""
-    stmt = select(Asset).where(Asset.is_active == True, Asset.is_obsolete == False)
+    stmt = select(Asset).where(Asset.is_active == True, Asset.is_archived == False)
     if exposure:
         stmt = stmt.where(Asset.exposure_level == exposure)
     if typ:
@@ -441,7 +441,7 @@ async def export_system(
 ):
     """Vollständige Systemdaten für ein einzelnes System."""
     asset = await session.get(Asset, uuid.UUID(system_id))
-    if not asset or not asset.is_active or asset.is_obsolete:
+    if not asset or not asset.is_active or asset.is_archived:
         raise HTTPException(404, f"System {system_id} nicht gefunden")
 
     if allowed := ctx.filter_tags():

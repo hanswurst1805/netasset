@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import Badge from '../components/Badge'
-import { Search, Trash2, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
+import { Search, Trash2, ChevronDown, ChevronUp, AlertTriangle, Archive, ArchiveRestore } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 
 const TYPES = ['', 'server', 'switch', 'router', 'firewall', 'client']
@@ -244,6 +244,7 @@ export default function Assets() {
   const [expFilter, setExpFilter] = useState('')
   const [attentionFilter, setAttentionFilter] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [tab, setTab] = useState<'active' | 'archive'>('active')
 
   const del = useMutation({
     mutationFn: (id: string) => api.assets.delete(id),
@@ -253,12 +254,19 @@ export default function Assets() {
     },
   })
 
+  const setArchived = useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      api.assets.update(id, { is_archived: archived }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] }),
+  })
+
   const { data: assets = [], isLoading } = useQuery({
-    queryKey: ['assets', typeFilter, expFilter, attentionFilter],
+    queryKey: ['assets', typeFilter, expFilter, attentionFilter, tab],
     queryFn: () => api.assets.list({
       ...(typeFilter && { asset_type: typeFilter }),
       ...(expFilter && { exposure_level: expFilter }),
       ...(attentionFilter && { needs_attention: 'true' }),
+      is_archived: tab === 'archive' ? 'true' : 'false',
     }),
   })
 
@@ -275,8 +283,28 @@ export default function Assets() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Assets</h1>
 
+      {/* Tab-Navigation */}
+      <div className="flex gap-1 mb-4 border-b border-gray-800 pb-0">
+        {[
+          { id: 'active', label: 'Aktiv' },
+          { id: 'archive', label: 'Archiv', icon: Archive },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => { setTab(id as any); setConfirmId(null) }}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm border-b-2 transition-colors ${
+              tab === id
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {Icon && <Icon size={13} />}{label}
+          </button>
+        ))}
+      </div>
+
       {/* Bulk-Delete Panel */}
-      <BulkDeletePanel allTags={allTags} />
+      {tab === 'active' && <BulkDeletePanel allTags={allTags} />}
 
       {/* Filter Bar */}
       <div className="flex gap-3 mb-4">
@@ -303,18 +331,20 @@ export default function Assets() {
         >
           {EXPOSURES.map(e => <option key={e} value={e}>{e || 'Alle Exposures'}</option>)}
         </select>
-        <button
-          onClick={() => setAttentionFilter(a => !a)}
-          title="Nur Systeme mit kritischen CVEs, ausstehenden Updates/Reboot oder ohne aktuelle Sichtung anzeigen"
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors ${
-            attentionFilter
-              ? 'bg-amber-900/50 border-amber-600 text-amber-300'
-              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
-          }`}
-        >
-          <AlertTriangle size={14} />
-          Aufmerksamkeit erforderlich
-        </button>
+        {tab === 'active' && (
+          <button
+            onClick={() => setAttentionFilter(a => !a)}
+            title="Nur Systeme mit kritischen CVEs, ausstehenden Updates/Reboot oder ohne aktuelle Sichtung anzeigen"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors ${
+              attentionFilter
+                ? 'bg-amber-900/50 border-amber-600 text-amber-300'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            <AlertTriangle size={14} />
+            Aufmerksamkeit erforderlich
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -351,11 +381,6 @@ export default function Assets() {
                       </span>
                     )}
                     {asset.hostname ?? '—'}
-                    {asset.is_obsolete && (
-                      <span className="text-[10px] font-medium text-amber-400 bg-amber-950 border border-amber-800 rounded px-1.5 py-0.5 shrink-0">
-                        Obsolet
-                      </span>
-                    )}
                   </div>
                   <div className="text-xs text-gray-500">{asset.ip_address}</div>
                 </td>
@@ -395,12 +420,31 @@ export default function Assets() {
                       >Nein</button>
                     </div>
                   ) : (
-                    <button
-                      onClick={e => { e.stopPropagation(); setConfirmId(asset.id) }}
-                      className="text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100">
+                      {tab === 'archive' ? (
+                        <button
+                          onClick={e => { e.stopPropagation(); setArchived.mutate({ id: asset.id, archived: false }) }}
+                          title="Aus dem Archiv zurückholen"
+                          className="text-gray-600 hover:text-indigo-400 transition-colors"
+                        >
+                          <ArchiveRestore size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={e => { e.stopPropagation(); setArchived.mutate({ id: asset.id, archived: true }) }}
+                          title="Asset archivieren"
+                          className="text-gray-600 hover:text-amber-400 transition-colors"
+                        >
+                          <Archive size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={e => { e.stopPropagation(); setConfirmId(asset.id) }}
+                        className="text-gray-600 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

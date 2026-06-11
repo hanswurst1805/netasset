@@ -55,8 +55,8 @@ class AssetCreate(BaseModel):
     tags: Optional[list[str]] = None
     min_confidence: Optional[float] = None
     # 0.0 = alles akzeptieren | 0.95 = nur Stable Keys | 1.0 = nur UUID
-    is_obsolete: Optional[bool] = None
-    # Obsolet: ausgeblendet aus Reports/Auswertungen, keine Discovery-Updates mehr
+    is_archived: Optional[bool] = None
+    # Archiviert: ausgeblendet aus Reports/Auswertungen, keine Discovery-Updates mehr
 
 
 class AssetUpdate(AssetCreate):
@@ -80,7 +80,7 @@ class AssetOut(BaseModel):
     location: Optional[str]
     tags: Optional[list[str]]
     is_active: bool
-    is_obsolete: bool = False
+    is_archived: bool = False
     min_confidence: Optional[float] = None
     last_seen_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -161,7 +161,7 @@ async def list_assets(
     asset_type: Optional[str] = None,
     exposure_level: Optional[str] = None,
     is_active: bool = True,
-    is_obsolete: Optional[bool] = None,
+    is_archived: Optional[bool] = None,
     needs_attention: Optional[bool] = None,
     limit: int = Query(100, le=500),
     offset: int = 0,
@@ -174,8 +174,8 @@ async def list_assets(
         stmt = stmt.where(Asset.asset_type == asset_type)
     if exposure_level:
         stmt = stmt.where(Asset.exposure_level == exposure_level)
-    if is_obsolete is not None:
-        stmt = stmt.where(Asset.is_obsolete == is_obsolete)
+    if is_archived is not None:
+        stmt = stmt.where(Asset.is_archived == is_archived)
     # Tag-basierte Zugriffskontrolle
     if allowed := ctx.filter_tags():
         stmt = stmt.where(Asset.tags.overlap(allowed))

@@ -151,7 +151,7 @@ async def list_cves(
         stmt = (
             stmt.join(CVEImpact, CVEImpact.cve_id == CVEEntry.cve_id)
             .join(Asset, CVEImpact.asset_id == Asset.id)
-            .where(Asset.is_active == True, Asset.is_obsolete == False)
+            .where(Asset.is_active == True, Asset.is_archived == False)
             .distinct()
         )
 
@@ -174,7 +174,7 @@ async def list_cves(
         impact_rows = await session.execute(
             select(CVEImpact.cve_id, Asset.id, Asset.hostname, Asset.ip_address)
             .join(Asset, CVEImpact.asset_id == Asset.id)
-            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True, Asset.is_obsolete == False)
+            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True, Asset.is_archived == False)
         )
         for row in impact_rows:
             label = row.hostname or str(row.ip_address) or str(row.id)
@@ -218,7 +218,7 @@ async def search(
         rows = await session.execute(
             select(CVEImpact.cve_id, Asset.id, Asset.hostname, Asset.ip_address)
             .join(Asset, CVEImpact.asset_id == Asset.id)
-            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True, Asset.is_obsolete == False)
+            .where(CVEImpact.cve_id.in_(cve_ids), Asset.is_active == True, Asset.is_archived == False)
         )
         affected_map: dict[str, list[str]] = {}
         for row in rows:

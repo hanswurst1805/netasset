@@ -173,7 +173,7 @@ async def run_daily_snapshots(session: AsyncSession) -> dict:
     """
     result = await session.execute(
         select(Asset)
-        .where(Asset.is_active == True, Asset.is_obsolete == False)
+        .where(Asset.is_active == True, Asset.is_archived == False)
         .options(selectinload(Asset.sbom_entries))
     )
     assets = result.scalars().all()

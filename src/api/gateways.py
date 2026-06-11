@@ -156,7 +156,7 @@ async def auto_detect_gateways(
     result = await session.execute(
         select(Asset).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.asset_type.in_(GATEWAY_TYPES),
             Asset.network_zones.is_not(None),
         )
@@ -236,7 +236,7 @@ async def get_topology(
     router_result = await session.execute(
         select(Asset).where(
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
             Asset.asset_type.in_(GATEWAY_TYPES),
             Asset.network_zones.is_not(None),
         )
@@ -251,7 +251,7 @@ async def get_topology(
         c = (await session.execute(
             select(func.count()).where(
                 Asset.is_active == True,
-                Asset.is_obsolete == False,
+                Asset.is_archived == False,
                 or_(Asset.network_id == net.id, Asset.network_zones.contains([net.name]))
             )
         )).scalar() or 0

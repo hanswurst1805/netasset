@@ -80,7 +80,7 @@ async def build_full_context(
     """
     stmt = (
         select(Asset)
-        .where(Asset.is_active == True, Asset.is_obsolete == False)
+        .where(Asset.is_active == True, Asset.is_archived == False)
         .options(
             selectinload(Asset.sbom_entries),
             selectinload(Asset.cve_impacts),
@@ -123,7 +123,7 @@ async def build_filtered_context(
 
     stmt = (
         select(Asset)
-        .where(Asset.is_active == True, Asset.is_obsolete == False)
+        .where(Asset.is_active == True, Asset.is_archived == False)
         .options(
             selectinload(Asset.sbom_entries),
             selectinload(Asset.cve_impacts),
@@ -155,7 +155,7 @@ async def build_filtered_context(
     if not assets:
         stmt2 = (
             select(Asset)
-            .where(Asset.is_active == True, Asset.is_obsolete == False)
+            .where(Asset.is_active == True, Asset.is_archived == False)
             .options(
                 selectinload(Asset.sbom_entries),
                 selectinload(Asset.cve_impacts),

@@ -171,7 +171,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
     network_zones:  (asset as any).network_zones ?? [],
     additional_ips: (asset as any).additional_ips ?? [],
     min_confidence: (asset as any).min_confidence ?? 0,
-    is_obsolete: (asset as any).is_obsolete ?? false,
+    is_archived: (asset as any).is_archived ?? false,
   })
   const [error, setError] = useState('')
 
@@ -304,23 +304,24 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
             </p>
           </div>
 
-          {/* Obsolet */}
+          {/* Archiviert */}
           <div className="col-span-2 bg-gray-800/50 border border-gray-700 rounded-lg p-3">
             <label className="flex items-start gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                checked={form.is_obsolete}
-                onChange={e => setForm({ ...form, is_obsolete: e.target.checked })}
+                checked={form.is_archived}
+                onChange={e => setForm({ ...form, is_archived: e.target.checked })}
                 className="mt-1 accent-amber-500"
               />
               <span>
                 <span className="text-sm font-medium text-gray-200 flex items-center gap-1.5">
-                  <Archive size={14} /> Als obsolet markieren
+                  <Archive size={14} /> Archivieren
                 </span>
                 <span className="block text-xs text-gray-500 mt-0.5">
                   Wird aus allen Auswertungen, Reports, Dashboards und Diagrammen
                   ausgeblendet und nicht mehr durch Discovery/Collector aktualisiert.
-                  Der Asset-Datensatz bleibt erhalten und kann hier wieder reaktiviert werden.
+                  Der Asset-Datensatz bleibt erhalten und kann hier (oder im Archiv-Reiter)
+                  wieder reaktiviert werden.
                 </span>
               </span>
             </label>
@@ -476,9 +477,9 @@ export default function AssetDetail() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {asset.hostname ?? asset.ip_address}
-            {(asset as any).is_obsolete && (
+            {(asset as any).is_archived && (
               <span className="flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-950 border border-amber-800 rounded px-2 py-0.5">
-                <Archive size={12} /> Obsolet
+                <Archive size={12} /> Archiviert
               </span>
             )}
           </h1>

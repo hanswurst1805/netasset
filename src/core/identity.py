@@ -261,7 +261,7 @@ class IdentityResolver:
         stmt = select(Asset).where(
             getattr(Asset, field) == value,
             Asset.is_active == True,
-            Asset.is_obsolete == False,
+            Asset.is_archived == False,
         ).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
