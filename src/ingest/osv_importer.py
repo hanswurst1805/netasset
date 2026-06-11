@@ -94,6 +94,23 @@ def _get_ecosystem(entry: SBOMEntry, os_name: str = "") -> Optional[str]:
     return eco
 
 
+# Debian-Advisory-Präfixe: nicht automatisch auf Ubuntu übertragbar
+DEBIAN_ONLY_PREFIXES = ("DEBIAN-", "DLA-", "DSA-")
+
+
+def _cve_aliases(vuln: dict) -> list[str]:
+    """
+    Sammelt CVE-IDs aus 'aliases' und 'upstream'.
+    DSA-/DEBIAN-CVE-Records tragen ihre CVE-Nummern in 'upstream', nicht in 'aliases'.
+    """
+    ids: list[str] = []
+    for key in ("aliases", "upstream"):
+        for ref in vuln.get(key, []) or []:
+            if ref.startswith("CVE-") and ref not in ids:
+                ids.append(ref)
+    return ids
+
+
 def _parse_severity(osv_vuln: dict) -> tuple[float | None, str | None]:
     """Extrahiert CVSS-Score und Severity aus einem OSV-Vuln-Objekt."""
     cvss = None
@@ -176,6 +193,17 @@ async def scan_asset_osv(
     os_name = asset.os_name or ""
     log.info("OSV-Scan: %s (OS: %s)", asset.hostname or asset_id, os_name)
 
+    # Aufräumen: Debian-spezifische Advisory-IDs (DSA-/DEBIAN-CVE-*/DLA-*) aus
+    # früheren Scans sind für Ubuntu-Assets nicht aussagekräftig
+    if "ubuntu" in os_name.lower():
+        from sqlalchemy import delete, or_
+        await session.execute(
+            delete(CVEImpact).where(
+                CVEImpact.asset_id == asset.id,
+                or_(*[CVEImpact.cve_id.startswith(p) for p in DEBIAN_ONLY_PREFIXES]),
+            )
+        )
+
     for entry in sbom[:max_pkgs]:
         # Strategie 1: direkt über bekanntes Ecosystem (OS-aware)
         eco = _get_ecosystem(entry, os_name)
@@ -232,23 +260,20 @@ async def scan_asset_osv(
             if not vuln_id:
                 continue
 
-            # Für Ubuntu-Systeme: Nur echte CVE-IDs und Ubuntu-Advisories.
-            # DEBIAN-CVE-* und DLA-* (Debian LTS) sind nicht Ubuntu-spezifisch.
-            if is_ubuntu:
-                aliases = [a for a in vuln.get("aliases", []) if a.startswith("CVE-")]
-                if vuln_id.startswith("DEBIAN-") or vuln_id.startswith("DLA-"):
-                    if not aliases:
-                        continue  # Kein CVE-Alias → für Ubuntu nicht relevant
-                    # Hat CVE-Alias → diesen als primäre ID verwenden
-                    vuln_id = aliases[0]
+            cve_aliases = _cve_aliases(vuln)
+
+            # Für Ubuntu-Systeme: Debian-spezifische Advisories (DSA-/DEBIAN-CVE-*/DLA-*)
+            # sind nicht Ubuntu-spezifisch — die "fixed"-Versionen aus Debian lassen sich
+            # nicht zuverlässig mit Ubuntus eigenem Versionsschema (...ubuntuX.Y) vergleichen.
+            if is_ubuntu and vuln_id.startswith(DEBIAN_ONLY_PREFIXES):
+                if not cve_aliases:
+                    continue  # Kein CVE-Bezug → für Ubuntu nicht relevant
+                vuln_id = cve_aliases[0]
             vulns_found += 1
 
-            # Aliases: bevorzuge CVE-IDs
-            cve_id = vuln_id
-            for alias in vuln.get("aliases", []):
-                if alias.startswith("CVE-"):
-                    cve_id = alias
-                    break
+            # Bevorzuge echte CVE-IDs aus aliases/upstream (DSA-/DEBIAN-CVE-Records
+            # tragen ihre CVE-Nummern in "upstream", nicht in "aliases")
+            cve_id = cve_aliases[0] if cve_aliases else vuln_id
 
             # CVEEntry anlegen / aktualisieren
             existing_cve = await session.get(CVEEntry, cve_id)
