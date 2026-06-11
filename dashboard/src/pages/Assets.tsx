@@ -346,11 +346,9 @@ export default function Assets() {
                 <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(`/assets/${asset.id}`)}>
                   <div className="font-medium text-gray-100 flex items-center gap-1.5">
                     {asset.needs_attention && (
-                      <AlertTriangle
-                        size={14}
-                        className="text-amber-400 shrink-0"
-                        title={asset.attention_reasons?.join(', ')}
-                      />
+                      <span title={asset.attention_reasons?.join(', ')} className="shrink-0">
+                        <AlertTriangle size={14} className="text-amber-400" />
+                      </span>
                     )}
                     {asset.hostname ?? '—'}
                   </div>
