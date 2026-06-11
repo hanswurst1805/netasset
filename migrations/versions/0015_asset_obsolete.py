@@ -1,4 +1,4 @@
-"""assets.is_archived
+"""assets.is_obsolete
 
 Revision ID: 0015
 Revises: 0014
@@ -18,11 +18,11 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "assets",
-        sa.Column("is_archived", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("is_obsolete", sa.Boolean(), nullable=False, server_default="false"),
     )
-    op.create_index("ix_assets_is_archived", "assets", ["is_archived"])
+    op.create_index("ix_assets_is_obsolete", "assets", ["is_obsolete"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_assets_is_archived", "assets")
-    op.drop_column("assets", "is_archived")
+    op.drop_index("ix_assets_is_obsolete", "assets")
+    op.drop_column("assets", "is_obsolete")
