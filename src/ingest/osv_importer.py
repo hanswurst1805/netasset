@@ -366,7 +366,9 @@ async def scan_asset_osv(
 
 async def scan_all_assets_osv(session: AsyncSession) -> dict:
     """Scannt alle aktiven Assets mit SBOM."""
-    result = await session.execute(select(Asset).where(Asset.is_active == True))
+    result = await session.execute(
+        select(Asset).where(Asset.is_active == True, Asset.is_obsolete == False)
+    )
     assets = result.scalars().all()
     total = {"scanned_assets": 0, "scanned_pkgs": 0, "vulns_found": 0, "new_cves": 0}
     for asset in assets:

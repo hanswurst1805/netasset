@@ -200,7 +200,11 @@ async def get_obashi(
         import uuid as _uuid
         asset_stmt = (
             select(Asset)
-            .where(Asset.id.in_([_uuid.UUID(aid) for aid in all_asset_ids]))
+            .where(
+                Asset.id.in_([_uuid.UUID(aid) for aid in all_asset_ids]),
+                Asset.is_active == True,
+                Asset.is_obsolete == False,
+            )
             .options(selectinload(Asset.sbom_entries))
         )
         assets = (await session.execute(asset_stmt)).scalars().all()

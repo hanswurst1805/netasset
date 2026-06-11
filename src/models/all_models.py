@@ -199,6 +199,9 @@ class Asset(Base):
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Obsolet: Asset existiert noch, wird aber nicht mehr betrachtet —
+    # ausgeblendet aus Reports/Auswertungen und nicht mehr durch Discovery aktualisiert.
+    is_obsolete: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

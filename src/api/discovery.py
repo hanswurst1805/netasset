@@ -99,7 +99,9 @@ async def ingest_devices(
             # Konfidenz-Check: Asset kann Mindest-Konfidenz setzen
             existing = await session.get(Asset, identity.asset_id)
             min_conf = getattr(existing, "min_confidence", 0.0) or 0.0
-            if identity.confidence < min_conf:
+            if existing is not None and existing.is_obsolete:
+                action = "skipped"  # Asset als obsolet markiert → keine Updates mehr
+            elif identity.confidence < min_conf:
                 action = "skipped"  # Konfidenz zu niedrig → ignorieren
             else:
                 merge_data = device.model_dump(exclude={"internal_id", "source"}, exclude_none=True)
@@ -128,7 +130,9 @@ async def ingest_devices(
             if identity.asset_id:
                 candidate = await session.get(Asset, identity.asset_id)
                 min_conf = getattr(candidate, "min_confidence", 0.0) or 0.0
-                if identity.confidence < min_conf:
+                if candidate is not None and candidate.is_obsolete:
+                    skip = True  # Asset als obsolet markiert → keine Updates mehr
+                elif identity.confidence < min_conf:
                     skip = True
 
             if skip:

@@ -144,10 +144,10 @@ async def get_cve_impact(
     if not cve:
         return None
 
-    # Alle aktiven Assets mit SBOM laden
+    # Alle aktiven, nicht-obsoleten Assets mit SBOM laden
     stmt = (
         select(Asset)
-        .where(Asset.is_active == True)
+        .where(Asset.is_active == True, Asset.is_obsolete == False)
         .options(selectinload(Asset.sbom_entries))
     )
     result = await session.execute(stmt)

@@ -351,6 +351,11 @@ export default function Assets() {
                       </span>
                     )}
                     {asset.hostname ?? '—'}
+                    {asset.is_obsolete && (
+                      <span className="text-[10px] font-medium text-amber-400 bg-amber-950 border border-amber-800 rounded px-1.5 py-0.5 shrink-0">
+                        Obsolet
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500">{asset.ip_address}</div>
                 </td>

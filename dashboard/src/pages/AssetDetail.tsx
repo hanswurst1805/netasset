@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck, ChevronDown, ChevronUp, Archive } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
@@ -171,6 +171,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
     network_zones:  (asset as any).network_zones ?? [],
     additional_ips: (asset as any).additional_ips ?? [],
     min_confidence: (asset as any).min_confidence ?? 0,
+    is_obsolete: (asset as any).is_obsolete ?? false,
   })
   const [error, setError] = useState('')
 
@@ -301,6 +302,28 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
                 ? 'Nur Stable Keys (MAC, Serial, Chassis-ID) akzeptiert'
                 : 'Nur UUID-Match — kein automatisches Update möglich'}
             </p>
+          </div>
+
+          {/* Obsolet */}
+          <div className="col-span-2 bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_obsolete}
+                onChange={e => setForm({ ...form, is_obsolete: e.target.checked })}
+                className="mt-1 accent-amber-500"
+              />
+              <span>
+                <span className="text-sm font-medium text-gray-200 flex items-center gap-1.5">
+                  <Archive size={14} /> Als obsolet markieren
+                </span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Wird aus allen Auswertungen, Reports, Dashboards und Diagrammen
+                  ausgeblendet und nicht mehr durch Discovery/Collector aktualisiert.
+                  Der Asset-Datensatz bleibt erhalten und kann hier wieder reaktiviert werden.
+                </span>
+              </span>
+            </label>
           </div>
 
           {error && (
@@ -451,7 +474,14 @@ export default function AssetDetail() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">{asset.hostname ?? asset.ip_address}</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            {asset.hostname ?? asset.ip_address}
+            {(asset as any).is_obsolete && (
+              <span className="flex items-center gap-1 text-xs font-medium text-amber-400 bg-amber-950 border border-amber-800 rounded px-2 py-0.5">
+                <Archive size={12} /> Obsolet
+              </span>
+            )}
+          </h1>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-gray-500 text-sm">{asset.fqdn ?? asset.ip_address}</p>
             <LastSeen date={(asset as any).last_seen_at} />

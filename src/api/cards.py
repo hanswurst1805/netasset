@@ -109,7 +109,7 @@ async def export_all_cards(
         raise HTTPException(400, f"Template '{body.template_id}' nicht gefunden")
 
     # Assets laden
-    stmt = select(Asset).where(Asset.is_active == True)
+    stmt = select(Asset).where(Asset.is_active == True, Asset.is_obsolete == False)
     if asset_type:
         stmt = stmt.where(Asset.asset_type == asset_type)
     if exposure_level:

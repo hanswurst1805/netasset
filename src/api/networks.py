@@ -69,6 +69,7 @@ async def list_networks(
         count_result = await session.execute(
             select(func.count()).where(
                 Asset.is_active == True,
+                Asset.is_obsolete == False,
                 or_(
                     Asset.network_id == net.id,
                     Asset.network_zones.contains([net.name]),
@@ -118,7 +119,11 @@ async def create_network(
 
     # Bestehende Assets sofort zuordnen
     assets_result = await session.execute(
-        select(Asset).where(Asset.is_active == True, Asset.ip_address.is_not(None))
+        select(Asset).where(
+            Asset.is_active == True,
+            Asset.is_obsolete == False,
+            Asset.ip_address.is_not(None),
+        )
     )
     assets = assets_result.scalars().all()
     assigned = 0
@@ -160,7 +165,11 @@ async def update_network(
     await session.refresh(net)
 
     count = (await session.execute(
-        select(func.count()).where(Asset.network_id == net.id, Asset.is_active == True)
+        select(func.count()).where(
+            Asset.network_id == net.id,
+            Asset.is_active == True,
+            Asset.is_obsolete == False,
+        )
     )).scalar() or 0
 
     return NetworkOut(id=net.id, name=net.name, cidr=net.cidr,
@@ -187,7 +196,11 @@ async def reclassify(
 ):
     """Alle Assets anhand der definierten Netze neu klassifizieren."""
     total_result = await session.execute(
-        select(func.count()).where(Asset.is_active == True, Asset.ip_address.is_not(None))
+        select(func.count()).where(
+            Asset.is_active == True,
+            Asset.is_obsolete == False,
+            Asset.ip_address.is_not(None),
+        )
     )
     total = total_result.scalar() or 0
     updated = await reclassify_all(session)
@@ -208,6 +221,7 @@ async def network_assets(
     result = await session.execute(
         select(Asset).where(
             Asset.is_active == True,
+            Asset.is_obsolete == False,
             or_(
                 Asset.network_id == network_id,
                 Asset.network_zones.contains([net.name]),
