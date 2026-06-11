@@ -202,6 +202,9 @@ class Asset(Base):
     # Archiviert: Asset existiert noch, wird aber nicht mehr betrachtet —
     # ausgeblendet aus Reports/Auswertungen und nicht mehr durch Discovery aktualisiert.
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Erzwingt die VM/Container-Erkennung unabhängig von Tags/Hersteller
+    # (z.B. Microcode-CVEs werden dann immer als nicht-exploitierbar gewertet).
+    force_vm: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

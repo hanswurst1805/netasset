@@ -49,6 +49,7 @@ export interface Asset {
   tags: string[] | null
   is_active: boolean
   is_archived: boolean
+  force_vm: boolean
   needs_attention: boolean
   attention_reasons: string[]
 }

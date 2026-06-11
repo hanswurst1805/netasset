@@ -38,6 +38,8 @@ VM_TAGS = {
 
 def _is_vm(asset: "Asset") -> bool:
     """Gibt True zurück wenn das Asset erkennbar eine VM oder ein Container ist."""
+    if asset.force_vm:
+        return True
     tags = {t.lower() for t in (asset.tags or [])}
     if tags & VM_TAGS:
         return True

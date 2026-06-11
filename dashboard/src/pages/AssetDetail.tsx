@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Asset } from '../api/client'
 import Badge from '../components/Badge'
-import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck, ChevronDown, ChevronUp, Archive } from 'lucide-react'
+import { ArrowLeft, Package, Network, Pencil, Trash2, X, Check, History, FileText, CreditCard, ShieldCheck, ChevronDown, ChevronUp, Archive, Cpu } from 'lucide-react'
 import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
@@ -172,6 +172,7 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
     additional_ips: (asset as any).additional_ips ?? [],
     min_confidence: (asset as any).min_confidence ?? 0,
     is_archived: (asset as any).is_archived ?? false,
+    force_vm: (asset as any).force_vm ?? false,
   })
   const [error, setError] = useState('')
 
@@ -302,6 +303,28 @@ function EditModal({ asset, onClose }: { asset: Asset; onClose: () => void }) {
                 ? 'Nur Stable Keys (MAC, Serial, Chassis-ID) akzeptiert'
                 : 'Nur UUID-Match — kein automatisches Update möglich'}
             </p>
+          </div>
+
+          {/* Als VM erzwingen */}
+          <div className="col-span-2 bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.force_vm}
+                onChange={e => setForm({ ...form, force_vm: e.target.checked })}
+                className="mt-1 accent-indigo-500"
+              />
+              <span>
+                <span className="text-sm font-medium text-gray-200 flex items-center gap-1.5">
+                  <Cpu size={14} /> Als VM/VPS werten
+                </span>
+                <span className="block text-xs text-gray-500 mt-0.5">
+                  Erzwingt die VM-Erkennung unabhängig von Tags/Hersteller. Microcode-/Firmware-CVEs
+                  (intel-microcode, amd64-microcode, ...) werden für dieses Asset dann immer als
+                  nicht exploitierbar gewertet (sofern in den Einstellungen aktiviert).
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* Archiviert */}

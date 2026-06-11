@@ -57,6 +57,8 @@ class AssetCreate(BaseModel):
     # 0.0 = alles akzeptieren | 0.95 = nur Stable Keys | 1.0 = nur UUID
     is_archived: Optional[bool] = None
     # Archiviert: ausgeblendet aus Reports/Auswertungen, keine Discovery-Updates mehr
+    force_vm: Optional[bool] = None
+    # Erzwingt VM-Erkennung (z.B. für Microcode-CVE-Ausblendung)
 
 
 class AssetUpdate(AssetCreate):
@@ -81,6 +83,7 @@ class AssetOut(BaseModel):
     tags: Optional[list[str]]
     is_active: bool
     is_archived: bool = False
+    force_vm: bool = False
     min_confidence: Optional[float] = None
     last_seen_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
