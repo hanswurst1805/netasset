@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type User } from '../api/client'
-import { Plus, Trash2, Key, Copy, Check } from 'lucide-react'
+import { Plus, Trash2, Key, Copy, Check, ShieldCheck, ShieldOff } from 'lucide-react'
 
 function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
   const [input, setInput] = useState('')
@@ -293,6 +293,179 @@ function APIKeySection() {
   )
 }
 
+function TwoFactorSection() {
+  const qc = useQueryClient()
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: api.auth.me })
+
+  const [setup, setSetup] = useState<{ secret: string; otpauth_uri: string; qr_code_svg: string } | null>(null)
+  const [enableCode, setEnableCode] = useState('')
+  const [disableCode, setDisableCode] = useState('')
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
+  const [error, setError] = useState('')
+
+  const startSetup = useMutation({
+    mutationFn: () => api.auth.twoFactor.setup(),
+    onSuccess: (data) => { setSetup(data); setError('') },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const enable = useMutation({
+    mutationFn: () => api.auth.twoFactor.enable(enableCode),
+    onSuccess: (data) => {
+      setBackupCodes(data.backup_codes)
+      setSetup(null)
+      setEnableCode('')
+      setError('')
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const disable = useMutation({
+    mutationFn: () => api.auth.twoFactor.disable(disableCode),
+    onSuccess: () => {
+      setDisableCode('')
+      setError('')
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  if (!me) return null
+
+  return (
+    <div>
+      <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+        Zwei-Faktor-Authentifizierung (2FA)
+      </h2>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            {me.totp_enabled
+              ? <ShieldCheck size={18} className="text-green-400" />
+              : <ShieldOff size={18} className="text-gray-500" />}
+            <div>
+              <div className="text-sm font-medium text-gray-200">
+                {me.totp_enabled ? '2FA ist aktiviert' : '2FA ist deaktiviert'}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                Schützt deinen Account zusätzlich mit einem Code aus einer
+                Authenticator-App (z.B. Google Authenticator, Aegis, 1Password).
+              </div>
+            </div>
+          </div>
+          {!me.totp_enabled && !setup && !backupCodes && (
+            <button
+              onClick={() => startSetup.mutate()}
+              disabled={startSetup.isPending}
+              className="shrink-0 text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded"
+            >
+              2FA einrichten
+            </button>
+          )}
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-400 bg-red-950 border border-red-800 rounded px-2 py-1">{error}</p>
+        )}
+
+        {setup && (
+          <div className="border-t border-gray-800 pt-4 space-y-3">
+            <p className="text-xs text-gray-400">
+              QR-Code mit der Authenticator-App scannen oder das Secret manuell eingeben,
+              dann den 6-stelligen Code zur Bestätigung eingeben.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              <div
+                className="bg-white p-2 rounded-lg w-40 h-40 shrink-0"
+                dangerouslySetInnerHTML={{ __html: setup.qr_code_svg }}
+              />
+              <div className="space-y-2 flex-1">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Secret (manuelle Eingabe)</div>
+                  <code className="text-xs text-indigo-300 break-all">{setup.secret}</code>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1.5">Code aus der App</label>
+                  <input
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 font-mono tracking-widest focus:outline-none"
+                    placeholder="123456"
+                    value={enableCode}
+                    onChange={e => setEnableCode(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && enableCode && enable.mutate()}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => { setSetup(null); setError('') }} className="text-xs text-gray-400 hover:text-gray-200 px-3 py-1.5">
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={() => enable.mutate()}
+                    disabled={!enableCode || enable.isPending}
+                    className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-3 py-1.5 rounded"
+                  >
+                    Aktivieren
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {backupCodes && (
+          <div className="border-t border-gray-800 pt-4 space-y-3">
+            <div className="bg-green-950 border-2 border-green-600 rounded-xl p-4">
+              <div className="text-green-400 font-bold text-sm mb-2">
+                ⚠ Backup-Codes jetzt notieren — werden danach nicht mehr angezeigt!
+              </div>
+              <p className="text-xs text-gray-400 mb-2">
+                Jeder Code kann einmalig verwendet werden, falls die Authenticator-App
+                nicht verfügbar ist.
+              </p>
+              <div className="grid grid-cols-2 gap-2 font-mono text-sm text-green-300">
+                {backupCodes.map(c => <div key={c}>{c}</div>)}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setBackupCodes(null)}
+                className="text-xs text-gray-500 hover:text-red-400 border border-gray-700 hover:border-red-700 rounded px-2 py-1 transition-colors"
+              >
+                Codes notiert — Schließen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {me.totp_enabled && !backupCodes && (
+          <div className="border-t border-gray-800 pt-4 space-y-2">
+            <label className="block text-xs text-gray-400">
+              Zum Deaktivieren: aktuellen Code aus der App oder einen Backup-Code eingeben
+            </label>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 font-mono tracking-widest focus:outline-none"
+                placeholder="123456"
+                value={disableCode}
+                onChange={e => setDisableCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && disableCode && disable.mutate()}
+              />
+              <button
+                onClick={() => disable.mutate()}
+                disabled={!disableCode || disable.isPending}
+                className="text-xs bg-red-900/50 border border-red-800 hover:bg-red-900 disabled:opacity-40 text-red-300 px-3 py-1.5 rounded whitespace-nowrap"
+              >
+                2FA deaktivieren
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function UserManagement() {
   const qc = useQueryClient()
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: api.auth.users.list })
@@ -378,6 +551,10 @@ export default function UserManagement() {
           </div>
         </section>
       )}
+
+      <section>
+        <TwoFactorSection />
+      </section>
 
       <section>
         <APIKeySection />

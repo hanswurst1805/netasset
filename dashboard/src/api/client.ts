@@ -9,6 +9,13 @@ function getToken() {
   return localStorage.getItem('token')
 }
 
+function storeSession(data: { access_token?: string; role?: string; allowed_tags?: string[] }) {
+  if (!data.access_token) return
+  localStorage.setItem('token', data.access_token)
+  localStorage.setItem('role', data.role ?? '')
+  localStorage.setItem('tags', JSON.stringify(data.allowed_tags ?? []))
+}
+
 async function req<T>(path: string, opts?: RequestInit & { auth?: boolean }): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -130,6 +137,22 @@ export interface User {
   role: string
   allowed_tags: string[]
   is_active: boolean
+  totp_enabled: boolean
+}
+
+export interface LoginResult {
+  access_token?: string
+  token_type?: string
+  role?: string
+  allowed_tags?: string[]
+  mfa_required: boolean
+  mfa_token?: string
+}
+
+export interface TOTPSetup {
+  secret: string
+  otpauth_uri: string
+  qr_code_svg: string
 }
 
 export interface APIKey {
@@ -148,7 +171,7 @@ export interface APIKey {
 
 export const api = {
   auth: {
-    login: async (username: string, password: string) => {
+    login: async (username: string, password: string): Promise<LoginResult> => {
       const body = new URLSearchParams({ username, password })
       const res = await fetch('/auth/login', {
         method: 'POST',
@@ -156,14 +179,28 @@ export const api = {
         body,
       })
       if (!res.ok) throw new Error('Login fehlgeschlagen')
-      const data = await res.json()
-      localStorage.setItem('token', data.access_token)
-      localStorage.setItem('role', data.role)
-      localStorage.setItem('tags', JSON.stringify(data.allowed_tags))
+      const data: LoginResult = await res.json()
+      if (!data.mfa_required) storeSession(data)
+      return data
+    },
+    verify2FA: async (mfa_token: string, code: string): Promise<LoginResult> => {
+      const res = await fetch('/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mfa_token, code }),
+      })
+      if (!res.ok) throw new Error('Code ungültig')
+      const data: LoginResult = await res.json()
+      storeSession(data)
       return data
     },
     me: () => req<User>('/me', { auth: true }),
     logout: () => { localStorage.clear() },
+    twoFactor: {
+      setup: () => req<TOTPSetup>('/2fa/setup', { auth: true, method: 'POST' }),
+      enable: (code: string) => req<{ backup_codes: string[] }>('/2fa/enable', { auth: true, method: 'POST', body: JSON.stringify({ code }) }),
+      disable: (code: string) => req<void>('/2fa/disable', { auth: true, method: 'POST', body: JSON.stringify({ code }) }),
+    },
     users: {
       list: () => req<User[]>('/users', { auth: true }),
       create: (body: object) => req<User>('/users', { auth: true, method: 'POST', body: JSON.stringify(body) }),

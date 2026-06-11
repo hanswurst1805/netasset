@@ -33,6 +33,8 @@ dependencies = [
     # Auth
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.0.0",
+    "pyotp>=2.9.0",
+    "qrcode>=7.4.0",
 
     # HTTP
     "httpx>=0.27.0",

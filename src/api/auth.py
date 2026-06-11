@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -14,12 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import (
     AuthContext,
+    consume_backup_code,
     create_access_token,
+    create_mfa_token,
+    decode_mfa_token,
     generate_api_key,
+    generate_backup_codes,
+    generate_totp_secret,
     get_current_user,
+    hash_backup_codes,
     hash_password,
     require_admin,
+    totp_provisioning_uri,
     verify_password,
+    verify_totp_code,
 )
 from src.core.database import get_session
 from src.models.auth import APIKey, User
@@ -31,10 +40,31 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 class TokenResponse(BaseModel):
-    access_token: str
+    access_token: Optional[str] = None
     token_type: str = "bearer"
-    role: str
-    allowed_tags: list[str]
+    role: Optional[str] = None
+    allowed_tags: Optional[list[str]] = None
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
+
+
+class MFAVerify(BaseModel):
+    mfa_token: str
+    code: str
+
+
+class TOTPSetupResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+    qr_code_svg: str
+
+
+class TOTPCode(BaseModel):
+    code: str
+
+
+class TOTPEnableResponse(BaseModel):
+    backup_codes: list[str]
 
 class UserCreate(BaseModel):
     username: str
@@ -57,6 +87,7 @@ class UserOut(BaseModel):
     role: str
     allowed_tags: list[str]
     is_active: bool
+    totp_enabled: bool = False
     model_config = {"from_attributes": True}
 
 class APIKeyCreate(BaseModel):
@@ -92,8 +123,40 @@ async def login(
             "Benutzername oder Passwort falsch",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if user.totp_enabled:
+        return TokenResponse(mfa_required=True, mfa_token=create_mfa_token(str(user.id)))
+
     token = create_access_token(str(user.id), user.role, user.allowed_tags or [])
     return TokenResponse(access_token=token, role=user.role, allowed_tags=user.allowed_tags or [])
+
+
+@router.post("/2fa/verify", response_model=TokenResponse)
+async def verify_2fa(
+    body: MFAVerify,
+    session: AsyncSession = Depends(get_session),
+):
+    """Zweiter Schritt des Logins: TOTP- oder Backup-Code prüfen."""
+    user_id = decode_mfa_token(body.mfa_token)
+    if not user_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "2FA-Token ungültig oder abgelaufen")
+
+    user = await session.get(User, user_id)
+    if not user or not user.is_active or not user.totp_enabled or not user.totp_secret:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "2FA nicht verfügbar")
+
+    if verify_totp_code(user.totp_secret, body.code):
+        token = create_access_token(str(user.id), user.role, user.allowed_tags or [])
+        return TokenResponse(access_token=token, role=user.role, allowed_tags=user.allowed_tags or [])
+
+    remaining = consume_backup_code(user.totp_backup_codes or [], body.code)
+    if remaining is not None:
+        user.totp_backup_codes = remaining
+        await session.flush()
+        token = create_access_token(str(user.id), user.role, user.allowed_tags or [])
+        return TokenResponse(access_token=token, role=user.role, allowed_tags=user.allowed_tags or [])
+
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Code ungültig")
 
 
 @router.get("/me", response_model=UserOut)
@@ -103,6 +166,81 @@ async def me(
 ):
     user = await session.get(User, ctx.user_id)
     return user
+
+# ---------------------------------------------------------------------------
+# Zwei-Faktor-Authentifizierung (eigener Account)
+# ---------------------------------------------------------------------------
+
+@router.post("/2fa/setup", response_model=TOTPSetupResponse)
+async def setup_2fa(
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Erzeugt ein neues TOTP-Secret (noch nicht aktiv) und liefert QR-Code + Secret."""
+    import qrcode
+    import qrcode.image.svg
+
+    user = await session.get(User, ctx.user_id)
+    if user.totp_enabled:
+        raise HTTPException(400, "2FA ist bereits aktiviert")
+
+    secret = generate_totp_secret()
+    user.totp_secret = secret
+    await session.flush()
+
+    uri = totp_provisioning_uri(secret, user.username)
+
+    buf = io.BytesIO()
+    qrcode.make(uri, image_factory=qrcode.image.svg.SvgPathImage).save(buf)
+    qr_svg = buf.getvalue().decode("utf-8")
+
+    return TOTPSetupResponse(secret=secret, otpauth_uri=uri, qr_code_svg=qr_svg)
+
+
+@router.post("/2fa/enable", response_model=TOTPEnableResponse)
+async def enable_2fa(
+    body: TOTPCode,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Bestätigt das in /2fa/setup erzeugte Secret mit einem TOTP-Code und aktiviert 2FA."""
+    user = await session.get(User, ctx.user_id)
+    if user.totp_enabled:
+        raise HTTPException(400, "2FA ist bereits aktiviert")
+    if not user.totp_secret:
+        raise HTTPException(400, "2FA-Setup nicht gestartet (POST /auth/2fa/setup)")
+    if not verify_totp_code(user.totp_secret, body.code):
+        raise HTTPException(400, "Code ungültig")
+
+    backup_codes = generate_backup_codes()
+    user.totp_enabled = True
+    user.totp_backup_codes = hash_backup_codes(backup_codes)
+    await session.flush()
+
+    return TOTPEnableResponse(backup_codes=backup_codes)
+
+
+@router.post("/2fa/disable", status_code=204)
+async def disable_2fa(
+    body: TOTPCode,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Deaktiviert 2FA. Erfordert einen gültigen TOTP- oder Backup-Code."""
+    user = await session.get(User, ctx.user_id)
+    if not user.totp_enabled or not user.totp_secret:
+        raise HTTPException(400, "2FA ist nicht aktiviert")
+
+    valid = verify_totp_code(user.totp_secret, body.code)
+    if not valid and consume_backup_code(user.totp_backup_codes or [], body.code) is not None:
+        valid = True
+    if not valid:
+        raise HTTPException(400, "Code ungültig")
+
+    user.totp_enabled = False
+    user.totp_secret = None
+    user.totp_backup_codes = None
+    await session.flush()
 
 # ---------------------------------------------------------------------------
 # User-Verwaltung (nur Admin)

@@ -30,6 +30,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
 
+    # Zwei-Faktor-Authentifizierung (TOTP)
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_backup_codes: Mapped[Optional[list]] = mapped_column(ARRAY(String), nullable=True)
+
     api_keys: Mapped[list["APIKey"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 

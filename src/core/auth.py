@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import bcrypt as _bcrypt
+import pyotp
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -43,6 +44,71 @@ def create_access_token(user_id: str, role: str, allowed_tags: list[str]) -> str
         settings.jwt_secret,
         algorithm="HS256",
     )
+
+# ---------------------------------------------------------------------------
+# Zwei-Faktor-Authentifizierung (TOTP)
+# ---------------------------------------------------------------------------
+
+MFA_TOKEN_EXPIRE_MINUTES = 5
+BACKUP_CODE_COUNT = 10
+
+
+def generate_totp_secret() -> str:
+    return pyotp.random_base32()
+
+
+def totp_provisioning_uri(secret: str, username: str) -> str:
+    return pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name="DRUCKER")
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    return pyotp.totp.TOTP(secret).verify(code.strip().replace(" ", ""), valid_window=1)
+
+
+def generate_backup_codes() -> list[str]:
+    """Gibt Klartext-Backup-Codes zurück (z.B. 'ab12-cd34')."""
+    return [
+        f"{secrets.token_hex(2)}-{secrets.token_hex(2)}"
+        for _ in range(BACKUP_CODE_COUNT)
+    ]
+
+
+def hash_backup_codes(codes: list[str]) -> list[str]:
+    return [hash_password(c) for c in codes]
+
+
+def consume_backup_code(hashed_codes: list[str], code: str) -> Optional[list[str]]:
+    """Prüft den Code gegen die gehashten Backup-Codes. Bei Treffer wird eine
+    aktualisierte Liste (ohne den verbrauchten Code) zurückgegeben, sonst None."""
+    code = code.strip().lower()
+    for h in hashed_codes:
+        if verify_password(code, h):
+            remaining = [x for x in hashed_codes if x != h]
+            return remaining
+    return None
+
+
+def create_mfa_token(user_id: str) -> str:
+    """Kurzlebiges Token zwischen Passwort- und 2FA-Code-Prüfung."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=MFA_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(
+        {"sub": user_id, "scope": "2fa", "exp": expire},
+        settings.jwt_secret,
+        algorithm="HS256",
+    )
+
+
+def decode_mfa_token(token: str) -> Optional[uuid.UUID]:
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+    except JWTError:
+        return None
+    if payload.get("scope") != "2fa":
+        return None
+    try:
+        return uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        return None
 
 # ---------------------------------------------------------------------------
 # Auth-Kontext
