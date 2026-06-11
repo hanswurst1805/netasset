@@ -19,6 +19,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.all_models import Asset, CVEEntry, CVEImpact, SBOMEntry
+from src.rag.cve_impact import (
+    _calc_risk_score,
+    _is_vm,
+    _is_vm_irrelevant_pkg,
+    _risk_level,
+    get_hide_vm_microcode_setting,
+)
 
 log = logging.getLogger(__name__)
 
@@ -249,10 +256,11 @@ async def scan_asset_osv(
     # Ergebnisse verarbeiten
     new_cves = 0
     vulns_found = 0
-    EXPOSURE_FACTOR = {"EXTERN": 1.5, "DMZ": 1.2, "INTERN": 1.0}
     found_cves: list[dict] = []   # für die Rückgabe
 
     is_ubuntu = "ubuntu" in os_name.lower()
+    hide_vm_microcode = await get_hide_vm_microcode_setting(session)
+    is_vm_asset = _is_vm(asset)
 
     for entry, vulns in zip(entry_map, all_vulns):
         for vuln in vulns:
@@ -303,13 +311,13 @@ async def scan_asset_osv(
 
             # Risk Score berechnen
             cvss_val = existing_cve.cvss_score or 5.0
-            exp_factor = EXPOSURE_FACTOR.get(asset.exposure_level, 1.0)
-            risk_score = round(cvss_val * exp_factor, 2)
-            risk_level = (
-                "HIGH" if risk_score >= 7.0
-                else "MEDIUM" if risk_score >= 4.0
-                else "LOW"
-            )
+            if hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(entry.pkg_name):
+                # Microcode/Firmware-CVEs sind auf VMs/Containern nicht exploitierbar
+                risk_score = 0.1
+                risk_level = "LOW"
+            else:
+                risk_score = _calc_risk_score(cvss_val, asset.exposure_level, asset.open_ports)
+                risk_level = _risk_level(risk_score)
 
             # CVEImpact anlegen / aktualisieren
             existing_impact = (await session.execute(
