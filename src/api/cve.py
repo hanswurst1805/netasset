@@ -244,12 +244,20 @@ async def asset_cve_exposure(
     """Top CVEs für ein Asset — aufgeteilt nach SBOM (Software) und Ports."""
     import uuid
     from sqlalchemy import desc, select
-    from src.models.all_models import CVEEntry, CVEImpact, SBOMEntry
+    from src.models.all_models import Asset, CVEEntry, CVEImpact, SBOMEntry
+    from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg, get_hide_vm_microcode_setting
 
     try:
         aid = uuid.UUID(asset_id)
     except ValueError:
         raise HTTPException(400, "Ungültige Asset-ID")
+
+    asset = await session.get(Asset, aid)
+    if not asset:
+        raise HTTPException(404, "Asset nicht gefunden")
+
+    hide_vm_microcode = await get_hide_vm_microcode_setting(session)
+    is_vm_asset = _is_vm(asset)
 
     # Alle CVE-Impacts für dieses Asset
     stmt = (
@@ -257,10 +265,12 @@ async def asset_cve_exposure(
         .outerjoin(CVEEntry, CVEImpact.cve_id == CVEEntry.cve_id)
         .where(CVEImpact.asset_id == aid)
         .order_by(desc(CVEImpact.risk_score))
-        .limit(20)
     )
     result = await session.execute(stmt)
-    rows = result.all()
+    rows = [
+        (impact, cve) for impact, cve in result.all()
+        if not (hide_vm_microcode and is_vm_asset and _is_vm_irrelevant_pkg(impact.affected_pkg or ""))
+    ][:20]
 
     # SBOM-Pakete für dieses Asset
     sbom_result = await session.execute(
