@@ -125,6 +125,7 @@ netasset/
 │   ├── fritzbox_collector.py      ← Fritz!Box TR-064
 │   ├── network_discovery_agent.py ← nmap-basierte Netzwerk-Discovery
 │   ├── lynis_collector.py         ← Lynis-Report Upload
+│   ├── eset_collector.py          ← ESET PROTECT Cloud (ESET Connect API)
 │   ├── install_linux.sh / install_macos.sh / install_windows.ps1
 │   └── *.conf.example
 └── scripts/
@@ -205,6 +206,7 @@ I – Infrastructure Netzwerk, Exposure, Ports, VLANs    [ip_networks, gateways]
 | `fritzbox_collector.py` | AVM Fritz!Box | TR-064 (fritzconnection) |
 | `network_discovery_agent.py` | Netzwerk | nmap |
 | `lynis_collector.py` | Linux | Lynis lynis-report.dat |
+| `eset_collector.py` | ESET PROTECT Cloud (verwaltete Endpoints) | ESET Connect API (OAuth2) |
 
 **Config-Hierarchie** (alle Collector): CLI-Flag > Env-Variable > Config-Datei > Auto-detect
 

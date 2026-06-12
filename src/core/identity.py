@@ -50,6 +50,7 @@ from src.models.all_models import Asset
 SOURCE_PRIORITY: dict[str, int] = {
     "manual":               100,   # Manuell eingetragen – höchste Prio
     "osquery":               80,   # Direkter Agent auf dem System
+    "eset-collector":        75,   # ESET PROTECT/Connect – verwalteter Endpoint-Agent
     "mikrotik-collector":    70,   # MikroTik REST API
     "fritzbox-collector":    65,   # Fritz!Box TR-064
     "snmp":                  60,   # SNMP-Abfrage
