@@ -1,6 +1,8 @@
 from __future__ import annotations
 """CVE & Security API Router"""
 
+import json
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,27 +68,13 @@ async def kev_upload(
     Download: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
     → „Download Vulnerability Catalog (JSON)"
     """
-    from src.ingest.kev_importer import import_kev
     content = await file.read()
-    import json as _json
-    data = _json.loads(content)
+    data = json.loads(content)
     vulns = data.get("vulnerabilities", [])
     if not vulns:
         raise HTTPException(400, "Keine Vulnerabilities in der Datei gefunden")
 
-    # Temporär in Funktion injizieren
-    from src.ingest import kev_importer as _kev
-    original = _kev.download_kev
-
-    async def _mock():
-        return vulns
-
-    _kev.download_kev = _mock
-    try:
-        result = await import_kev(session)
-    finally:
-        _kev.download_kev = original
-    return result
+    return await import_kev(session, vulns=vulns)
 
 
 @router.post("/kev/scan/asset/{asset_id}")

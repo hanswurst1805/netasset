@@ -11,8 +11,10 @@ Quelle: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import httpx
 from sqlalchemy import select
@@ -24,20 +26,10 @@ from src.models.all_models import Asset, CVEEntry, CVEImpact, SBOMEntry
 log = logging.getLogger(__name__)
 
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-# Fallback-Mirror falls CISA blockiert (z.B. Rechenzentrum-IPs)
-KEV_MIRRORS = [
-    "https://raw.githubusercontent.com/center-for-threat-informed-defense/attack-flow/main/corpus/kev.json",
-    # Direkter curl-Fallback
-]
 
 
 async def download_kev() -> list[dict]:
-    """
-    Lädt die aktuelle KEV-Liste von CISA herunter.
-    Fallback: curl (umgeht IP-basierte Sperren).
-    """
-    import subprocess, json as _json
-
+    """Lädt die aktuelle KEV-Liste von CISA herunter."""
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -48,48 +40,42 @@ async def download_kev() -> list[dict]:
         "Referer": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
     }
 
-    # Versuch 1: httpx mit Browser-Header
     try:
         async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
             resp = await client.get(KEV_URL, headers=headers)
             if resp.status_code == 200:
-                data = resp.json()
-                vulns = data.get("vulnerabilities", [])
-                log.info("CISA KEV (httpx): %d Einträge", len(vulns))
+                vulns = resp.json().get("vulnerabilities", [])
+                log.info("CISA KEV: %d Einträge", len(vulns))
                 return vulns
-            log.warning("CISA KEV httpx: HTTP %d", resp.status_code)
+            log.warning("CISA KEV: HTTP %d", resp.status_code)
     except Exception as e:
-        log.warning("CISA KEV httpx fehlgeschlagen: %s", e)
-
-    # Versuch 2: curl (sendet realistischere Headers)
-    try:
-        result = subprocess.run(
-            ["curl", "-sL", "--max-time", "30",
-             "-H", f"User-Agent: {headers['User-Agent']}",
-             "-H", "Accept: application/json",
-             KEV_URL],
-            capture_output=True, text=True, timeout=35,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            data = _json.loads(result.stdout)
-            vulns = data.get("vulnerabilities", [])
-            log.info("CISA KEV (curl): %d Einträge", len(vulns))
-            return vulns
-    except Exception as e:
-        log.warning("CISA KEV curl fehlgeschlagen: %s", e)
+        log.warning("CISA KEV Download fehlgeschlagen: %s", e)
 
     raise RuntimeError(
-        "CISA KEV nicht erreichbar. Mögliche Ursache: IP des Servers ist blockiert. "
-        "Bitte manuell herunterladen und als Datei importieren."
+        "CISA KEV nicht erreichbar. Mögliche Ursache: IP des Servers ist von CISA "
+        "blockiert (z.B. Hosting-Provider-Bereiche). Datei manuell von "
+        "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json "
+        "herunterladen und mit 'python scripts/import_kev.py --file <pfad>' importieren."
     )
 
 
-async def import_kev(session: AsyncSession | None = None) -> dict:
+def load_kev_file(path: str) -> list[dict]:
+    """Lädt eine manuell heruntergeladene KEV-JSON-Datei."""
+    data = json.loads(Path(path).read_text())
+    vulns = data.get("vulnerabilities", [])
+    log.info("CISA KEV (Datei %s): %d Einträge", path, len(vulns))
+    return vulns
+
+
+async def import_kev(session: AsyncSession | None = None, vulns: list[dict] | None = None) -> dict:
     """
     Markiert CVEs in der DB als KEV (Known Exploited).
     Legt neue CVEEntry an falls noch nicht vorhanden.
+
+    Wenn `vulns` nicht übergeben wird, wird die Liste von CISA heruntergeladen.
     """
-    vulns = await download_kev()
+    if vulns is None:
+        vulns = await download_kev()
 
     async def _run(s: AsyncSession) -> dict:
         marked = 0
