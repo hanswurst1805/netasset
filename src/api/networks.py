@@ -132,7 +132,6 @@ async def create_network(
             asset.network_id = net.id
             zones = set(asset.network_zones or [])
             zones.add(net.name)
-            zones.add(net.cidr)
             asset.network_zones = list(zones)
             assigned += 1
     await session.flush()

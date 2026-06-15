@@ -17,6 +17,14 @@ from src.models.all_models import Asset, IpNetwork
 log = logging.getLogger(__name__)
 
 
+def _asset_type_is_manual(asset: Asset) -> bool:
+    """Prüft ob asset_type zuletzt manuell (PUT /assets/{id}) gesetzt wurde."""
+    for src in (asset.sources or []):
+        if src.get("origin") == "manual" and "asset_type" in src.get("fields", []):
+            return True
+    return False
+
+
 def ip_in_network(ip_str: str, cidr: str) -> bool:
     """Prüft ob eine IP-Adresse in einem CIDR-Netz liegt (inkl. /32 Einzelhost-Netze)."""
     if not ip_str or not ip_str.strip():
@@ -64,7 +72,9 @@ async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None
     - network_zones → Netznamen aller passenden IPs
     """
     exp_rank = {"INTERN": 0, "DMZ": 1, "EXTERN": 2}
-    zones = set(asset.network_zones or [])
+    # network_zones wird komplett neu aus den aktuellen IPs berechnet,
+    # damit veraltete Zonen (z.B. von gelöschten Netzen) nicht erhalten bleiben.
+    zones: set[str] = set()
 
     # 1. Primäre IP → network_id
     matched = await classify_asset(asset, session)
@@ -98,8 +108,9 @@ async def classify_asset_and_update(asset: Asset, session: AsyncSession) -> None
 
     asset.network_zones = list(zones)
 
-    # 3. Asset in 2+ Netzwerk-Zonen → automatisch Router
-    if len(zones) >= 2 and asset.asset_type not in ("router", "firewall"):
+    # 3. Asset in 2+ Netzwerk-Zonen → automatisch Router (außer manuell gesetzt)
+    if (len(zones) >= 2 and asset.asset_type not in ("router", "firewall")
+            and not _asset_type_is_manual(asset)):
         log.info("Asset %s hat %d Zonen → asset_type=router",
                  asset.ip_address or asset.hostname, len(zones))
         asset.asset_type = "router"
@@ -126,7 +137,8 @@ async def reclassify_all(session: AsyncSession) -> int:
     count = 0
     for asset in assets:
         old_network_id = asset.network_id
-        zones = set(asset.network_zones or [])
+        # network_zones komplett neu berechnen (siehe classify_asset_and_update)
+        zones: set[str] = set()
 
         # Alle IPs des Assets prüfen (primär + additional)
         all_ips = [asset.ip_address] + list(getattr(asset, "additional_ips", None) or [])
@@ -154,8 +166,9 @@ async def reclassify_all(session: AsyncSession) -> int:
         # network_zones aktualisieren
         asset.network_zones = list(zones)
 
-        # Router-Auto-Erkennung
-        if len(zones) >= 2 and asset.asset_type not in ("router", "firewall"):
+        # Router-Auto-Erkennung (außer manuell gesetzt)
+        if (len(zones) >= 2 and asset.asset_type not in ("router", "firewall")
+                and not _asset_type_is_manual(asset)):
             asset.asset_type = "router"
 
         if asset.network_id != old_network_id:

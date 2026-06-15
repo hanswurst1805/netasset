@@ -311,8 +311,27 @@ async def update_asset(
     if allowed := ctx.filter_tags():
         if not asset.tags or not set(asset.tags) & set(allowed):
             raise HTTPException(403, "Kein Zugriff auf dieses Asset")
-    for field, value in body.model_dump(exclude_none=True).items():
+
+    from src.core.identity import PRIORITY_FIELDS
+    update_data = body.model_dump(exclude_none=True)
+    changed_priority_fields = [
+        f for f in update_data if f in PRIORITY_FIELDS and getattr(asset, f, None) != update_data[f]
+    ]
+    for field, value in update_data.items():
         setattr(asset, field, value)
+
+    if changed_priority_fields:
+        from sqlalchemy.orm.attributes import flag_modified
+        sources = [s for s in (asset.sources or []) if s.get("origin") != "manual"]
+        sources.append({
+            "origin": "manual",
+            "last_seen": datetime.now(timezone.utc).isoformat(),
+            "priority": 100,
+            "fields": changed_priority_fields,
+        })
+        asset.sources = sources
+        flag_modified(asset, "sources")
+
     await session.flush()
 
     # Router mit 2+ Zonen → Gateways automatisch anlegen
