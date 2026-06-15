@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-from src.api import app_settings, applications, assets, auth, cards, conflicts, cve, discovery, export, gateways, networks, obashi, owners, processes, reports, reporting, sbom, snapshots
+from src.api import app_settings, applications, assets, auth, cards, conflicts, cve, discovery, export, gateways, networks, obashi, owners, processes, reports, reporting, sbom, sessions, snapshots
 from src.core.auth import hash_password
 from src.core.config import settings
 from src.core.database import async_session_factory
@@ -74,6 +74,7 @@ app.include_router(cards.router,        prefix="/api/v1/cards",          tags=["
 app.include_router(applications.router, prefix="/api/v1/applications",   tags=["Applications"])
 app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discovery"])
 app.include_router(app_settings.router, prefix="/api/v1/settings", tags=["Settings"])
+app.include_router(sessions.router,     prefix="/api/v1/sessions",       tags=["Audit Sessions"])
 
 
 @app.get("/health")

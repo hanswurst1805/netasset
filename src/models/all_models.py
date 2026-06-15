@@ -474,3 +474,64 @@ class AppSettings(Base):
     # Microcode-/Firmware-CVEs (intel-microcode, amd64-microcode, ...) auf
     # VMs/VPS als nicht-exploitierbar ausblenden bzw. herabstufen.
     hide_vm_microcode_cves: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+# ---------------------------------------------------------------------------
+# Audit Sessions (Jumpbox SSH-Session-Aufzeichnung)
+# ---------------------------------------------------------------------------
+
+class AuditSession(Base):
+    """
+    Eine über die Jumpbox aufgezeichnete SSH-Session zu einem Zielhost.
+
+    Zwei Quellen, korreliert über session_uuid:
+    - Jumpbox lädt die komplette Terminal-Aufzeichnung (script -t) hoch
+    - Zielhost lädt die saubere Kommandoliste hoch (siehe AuditSessionCommand)
+    """
+    __tablename__ = "audit_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Korrelations-ID, von der Jumpbox erzeugt und per SetEnv an das Ziel gereicht
+    session_uuid: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+
+    operator: Mapped[str] = mapped_column(String(120), nullable=False)   # wer auf der Jumpbox eingeloggt war
+    jumpbox_host: Mapped[Optional[str]] = mapped_column(String(255))
+    target_host: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    target_user: Mapped[Optional[str]] = mapped_column(String(120))      # User auf dem Zielhost
+
+    # Verknüpfung zum Asset (per hostname/IP aufgelöst, optional)
+    target_asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    duration_sec: Mapped[Optional[int]] = mapped_column(Integer)
+    exit_code: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Aufzeichnung der Jumpbox (script -t): Typescript + Timing
+    recording_format: Mapped[str] = mapped_column(String(30), default="script-typescript")
+    recording: Mapped[Optional[str]] = mapped_column(Text)        # typescript (Terminal-Stream)
+    timing: Mapped[Optional[str]] = mapped_column(Text)           # script --timing (für Replay)
+    client_ip: Mapped[Optional[str]] = mapped_column(String(64))  # von wo der Operator kam
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AuditSessionCommand(Base):
+    """Einzelnes, zielseitig protokolliertes Kommando einer Audit-Session."""
+    __tablename__ = "audit_session_commands"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("audit_sessions.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)         # Reihenfolge innerhalb der Session
+    executed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    command: Mapped[str] = mapped_column(Text, nullable=False)
+    cwd: Mapped[Optional[str]] = mapped_column(String(500))
+    os_user: Mapped[Optional[str]] = mapped_column(String(120))
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "seq", name="uq_audit_cmd_session_seq"),
+    )

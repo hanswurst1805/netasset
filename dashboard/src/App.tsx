@@ -14,6 +14,7 @@ import Networks from './pages/Networks'
 import Reporting from './pages/Reporting'
 import CardExport from './pages/CardExport'
 import OBASHIEditor from './pages/OBASHIEditor'
+import Sessions from './pages/Sessions'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -47,6 +48,7 @@ export default function App() {
                   <Route path="/reporting" element={<Reporting />} />
                   <Route path="/cards" element={<CardExport />} />
                   <Route path="/basis" element={<OBASHIEditor />} />
+                  <Route path="/sessions" element={<Sessions />} />
                 </Routes>
               </Layout>
             </RequireAuth>
