@@ -12,7 +12,7 @@ die Session-Zeile wird angelegt bzw. ergänzt.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -90,6 +90,15 @@ class SessionDetail(SessionSummary):
 # Hilfsfunktionen
 # ---------------------------------------------------------------------------
 
+def _naive_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Wandelt tz-aware Zeitstempel in naive UTC (Spalten sind TIMESTAMP WITHOUT TIME ZONE)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 async def _resolve_asset(target_host: str, session: AsyncSession) -> Optional[uuid.UUID]:
     """Versucht target_host (Hostname oder IP) einem Asset zuzuordnen."""
     if not target_host:
@@ -149,8 +158,8 @@ async def ingest_session(
     sess.jumpbox_host = body.jumpbox_host
     sess.target_host = body.target_host
     sess.target_user = body.target_user
-    sess.started_at = body.started_at
-    sess.ended_at = body.ended_at
+    sess.started_at = _naive_utc(body.started_at)
+    sess.ended_at = _naive_utc(body.ended_at)
     sess.duration_sec = body.duration_sec
     sess.exit_code = body.exit_code
     sess.recording_format = body.recording_format
@@ -191,7 +200,7 @@ async def ingest_commands(
         session.add(AuditSessionCommand(
             session_id=sess.id,
             seq=c.seq,
-            executed_at=c.executed_at,
+            executed_at=_naive_utc(c.executed_at),
             command=c.command,
             cwd=c.cwd,
             os_user=c.os_user,
