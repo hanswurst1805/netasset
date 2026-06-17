@@ -1,4 +1,4 @@
-"""Application CRUD – OBASHI A-Layer (fachliche Anwendungen)."""
+"""Application CRUD – BASIS A-Layer (fachliche Anwendungen)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
+from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
     Application, ApplicationComponent, Asset, BusinessProcess, CVEImpact, SBOMEntry,
@@ -176,19 +177,6 @@ class ComponentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-def _component_condition(match_kind: str, match_value: str):
-    """SQL-Bedingung, die ein SBOM-Paket gegen die Komponenten-Regel matcht."""
-    v = match_value.lower()
-    if match_kind == "prefix":
-        return func.lower(SBOMEntry.pkg_name).like(v + "%")
-    if match_kind == "purl":
-        return func.lower(SBOMEntry.purl).like("%" + v + "%")
-    if match_kind == "cpe":
-        return func.lower(SBOMEntry.cpe).like("%" + v + "%")
-    # default: exakter Paketname
-    return func.lower(SBOMEntry.pkg_name) == v
-
-
 async def _resolve_component(comp: ApplicationComponent, session: AsyncSession) -> ComponentOut:
     """Löst eine Komponenten-Regel gegen die SBOM auf: Instanzen, Systeme, CVEs."""
     out = ComponentOut.model_validate(comp)
@@ -197,7 +185,7 @@ async def _resolve_component(comp: ApplicationComponent, session: AsyncSession) 
         select(SBOMEntry, Asset.hostname)
         .join(Asset, Asset.id == SBOMEntry.asset_id)
         .where(
-            _component_condition(comp.match_kind, comp.match_value),
+            component_condition(comp.match_kind, comp.match_value),
             Asset.is_active == True,
             Asset.is_archived == False,
         )

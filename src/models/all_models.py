@@ -1,5 +1,5 @@
 """
-SQLAlchemy-Modelle für alle OBASHI-Schichten.
+SQLAlchemy-Modelle für alle BASIS-Schichten.
 O – Owners / B – Business / A – Application / S – System / H – Hardware / I – Infrastructure
 """
 
@@ -44,7 +44,7 @@ class Owner(Base):
 # ---------------------------------------------------------------------------
 
 class BusinessProcess(Base):
-    """OBASHI B-Layer: Business-Prozesse mit Owner-Verknüpfung."""
+    """BASIS B-Layer: Business-Prozesse mit Owner-Verknüpfung."""
     __tablename__ = "business_processes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -78,13 +78,13 @@ class ProcessAsset(Base):
 
 
 # ---------------------------------------------------------------------------
-# A – Application (OBASHI A-Layer)
+# A – Application (BASIS A-Layer)
 # Fachliche Anwendungen/Services – KEINE Software-Pakete (die gehören in S)
 # ---------------------------------------------------------------------------
 
 class Application(Base):
     """
-    OBASHI A-Layer: Fachliche Anwendung oder Service.
+    BASIS A-Layer: Fachliche Anwendung oder Service.
 
     Beispiele: "Webshop Frontend", "CRM-System", "Zahlungsgateway", "ERP"
     – nicht: nginx, OpenSSL, PostgreSQL (die gehören ins SBOM / S-Layer)
@@ -177,7 +177,7 @@ class ApplicationComponent(Base):
 
 class Asset(Base):
     """
-    OBASHI H-Layer: Hardware-Assets.
+    BASIS H-Layer: Hardware-Assets.
     Enthält auch S-Layer (OS/System-Daten) da eng verknüpft.
     """
     __tablename__ = "assets"

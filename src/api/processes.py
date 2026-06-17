@@ -1,4 +1,4 @@
-"""Business-Prozesse (OBASHI B-Layer) – FastAPI Router."""
+"""Business-Prozesse (BASIS B-Layer) – FastAPI Router."""
 
 import uuid
 from typing import Optional

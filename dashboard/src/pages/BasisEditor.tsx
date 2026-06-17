@@ -1,5 +1,5 @@
 /**
- * OBASHI-Editor
+ * BASIS-Editor
  *
  * Ermöglicht das freie Anlegen von Prozessen und Anwendungen.
  * Anwendungen werden mit Assets verknüpft → S/H/I-Layer automatisch.
@@ -107,7 +107,7 @@ function ProcessEditor({ proc, owners, onSaved }: any) {
     mutationFn: () => proc?.id
       ? api.procs.update(proc.id, { ...form, sla_rto_hours: form.sla_rto_hours || null, sla_rpo_hours: form.sla_rpo_hours || null, owner_id: form.owner_id || null })
       : api.procs.create({ ...form, sla_rto_hours: form.sla_rto_hours || null, sla_rpo_hours: form.sla_rpo_hours || null, owner_id: form.owner_id || null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['obashi-procs'] }); onSaved?.() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['basis-procs'] }); onSaved?.() },
   })
 
   return (
@@ -179,7 +179,7 @@ function AppEditor({ app, processId, assets, onSaved }: any) {
     mutationFn: () => app?.id
       ? api.apps.update(app.id, { ...form, version: form.version || null, url: form.url || null, description: form.description || null, owner_id: form.owner_id || null, criticality: form.criticality ? +form.criticality : null })
       : api.apps.create({ ...form, version: form.version || null, url: form.url || null, description: form.description || null, owner_id: form.owner_id || null, criticality: form.criticality ? +form.criticality : null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['obashi-apps'] }); onSaved?.() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['basis-apps'] }); onSaved?.() },
   })
 
   const toggleAsset = (id: string) => {
@@ -308,7 +308,7 @@ function OwnerEditor({ onSaved }: any) {
   const [form, setForm] = useState({ name: '', email: '', team: '', department: '', role: '' })
   const save = useMutation({
     mutationFn: () => api.owners.create({ ...form, email: form.email||null, team: form.team||null, department: form.department||null, role: form.role||null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['obashi-owners'] }); setForm({ name:'', email:'', team:'', department:'', role:'' }); onSaved?.() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['basis-owners'] }); setForm({ name:'', email:'', team:'', department:'', role:'' }); onSaved?.() },
   })
   return (
     <div className="space-y-2">
@@ -335,20 +335,20 @@ function OwnerEditor({ onSaved }: any) {
 
 type Selection = { type: 'proc' | 'app' | 'new-proc' | 'new-app' | 'new-owner'; id?: string; context?: string }
 
-export default function OBASHIEditor() {
+export default function BasisEditor() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [sel, setSel] = useState<Selection | null>(null)
   const [expandedProcs, setExpandedProcs] = useState<Set<string>>(new Set())
 
-  const { data: owners = [] } = useQuery({ queryKey: ['obashi-owners'], queryFn: api.owners.list })
-  const { data: procs = [] }  = useQuery({ queryKey: ['obashi-procs'],  queryFn: api.procs.list })
-  const { data: apps = [] }   = useQuery({ queryKey: ['obashi-apps'],   queryFn: () => api.apps.list() })
+  const { data: owners = [] } = useQuery({ queryKey: ['basis-owners'], queryFn: api.owners.list })
+  const { data: procs = [] }  = useQuery({ queryKey: ['basis-procs'],  queryFn: api.procs.list })
+  const { data: apps = [] }   = useQuery({ queryKey: ['basis-apps'],   queryFn: () => api.apps.list() })
   const { data: assets = [] } = useQuery({ queryKey: ['assets-all'],    queryFn: api.assets.list })
 
-  const delProc = useMutation({ mutationFn: (id: string) => api.procs.delete(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['obashi-procs'] }) })
-  const delApp  = useMutation({ mutationFn: (id: string) => api.apps.delete(id),  onSuccess: () => qc.invalidateQueries({ queryKey: ['obashi-apps'] }) })
-  const delOwner = useMutation({ mutationFn: (id: string) => api.owners.delete(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['obashi-owners'] }) })
+  const delProc = useMutation({ mutationFn: (id: string) => api.procs.delete(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['basis-procs'] }) })
+  const delApp  = useMutation({ mutationFn: (id: string) => api.apps.delete(id),  onSuccess: () => qc.invalidateQueries({ queryKey: ['basis-apps'] }) })
+  const delOwner = useMutation({ mutationFn: (id: string) => api.owners.delete(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['basis-owners'] }) })
 
   const toggleProc = (id: string) => setExpandedProcs(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 

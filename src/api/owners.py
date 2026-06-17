@@ -1,4 +1,4 @@
-"""Owner CRUD – OBASHI O-Layer."""
+"""Owner CRUD – BASIS O-Layer."""
 
 from __future__ import annotations
 

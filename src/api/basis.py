@@ -1,6 +1,6 @@
-"""OBASHI-Struktur API – liefert den vollständigen Schichten-Baum eines Prozesses.
+"""BASIS-Struktur API – liefert den vollständigen Schichten-Baum eines Prozesses.
 
-Korrekte OBASHI-Schichten:
+BASIS-Schichten:
   O – Owners:         Personen / Teams / Abteilungen
   B – Business:       Geschäftsprozesse / Services
   A – Application:    Fachliche Anwendungen (Webshop, CRM, ERP) – KEINE Software-Pakete
@@ -21,9 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.auth import AuthContext, get_current_user
+from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
-    Application, Asset, BusinessProcess, Owner, ProcessAsset, SBOMEntry
+    Application, ApplicationComponent, Asset, BusinessProcess, Owner, ProcessAsset, SBOMEntry
 )
 
 router = APIRouter()
@@ -41,7 +42,7 @@ SYSTEM_PKG_NAMES = {
 }
 
 
-class OBASHINode(BaseModel):
+class BasisNode(BaseModel):
     id: str
     label: str
     sublabel: Optional[str] = None
@@ -49,20 +50,20 @@ class OBASHINode(BaseModel):
     meta: dict = {}
 
 
-class OBASHIEdge(BaseModel):
+class BasisEdge(BaseModel):
     from_id: str
     to_id: str
 
 
-class OBASHIDiagram(BaseModel):
+class BasisDiagram(BaseModel):
     process_id: str
     process_name: str
-    nodes: list[OBASHINode]
-    edges: list[OBASHIEdge]
+    nodes: list[BasisNode]
+    edges: list[BasisEdge]
 
 
-@router.get("/processes/{process_id}/obashi", response_model=OBASHIDiagram)
-async def get_obashi(
+@router.get("/processes/{process_id}/basis", response_model=BasisDiagram)
+async def get_basis(
     process_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
     ctx: AuthContext = Depends(get_current_user),
@@ -72,8 +73,8 @@ async def get_obashi(
     if not process:
         raise HTTPException(404, f"Prozess {process_id} nicht gefunden")
 
-    nodes: list[OBASHINode] = []
-    edges: list[OBASHIEdge] = []
+    nodes: list[BasisNode] = []
+    edges: list[BasisEdge] = []
 
     # -----------------------------------------------------------------------
     # O – Owner des Prozesses
@@ -83,7 +84,7 @@ async def get_obashi(
         owner = await session.get(Owner, process.owner_id)
         if owner:
             owner_node_id = f"O-{owner.id}"
-            nodes.append(OBASHINode(
+            nodes.append(BasisNode(
                 id=owner_node_id,
                 label=owner.name,
                 sublabel=owner.team or owner.department,
@@ -100,7 +101,7 @@ async def get_obashi(
     # B – Business Process
     # -----------------------------------------------------------------------
     b_node_id = f"B-{process.id}"
-    nodes.append(OBASHINode(
+    nodes.append(BasisNode(
         id=b_node_id,
         label=process.name,
         sublabel=f"Kritikalität {process.criticality}/5",
@@ -113,7 +114,7 @@ async def get_obashi(
         },
     ))
     if owner_node_id:
-        edges.append(OBASHIEdge(from_id=owner_node_id, to_id=b_node_id))
+        edges.append(BasisEdge(from_id=owner_node_id, to_id=b_node_id))
 
     # -----------------------------------------------------------------------
     # A – Applications (fachliche Anwendungen aus DB)
@@ -136,7 +137,7 @@ async def get_obashi(
                     aon_id = f"O-{app_owner.id}"
                     app_owner_ids[app.owner_id] = aon_id
                     if aon_id not in [n.id for n in nodes]:
-                        nodes.append(OBASHINode(
+                        nodes.append(BasisNode(
                             id=aon_id,
                             label=app_owner.name,
                             sublabel=app_owner.team,
@@ -155,7 +156,7 @@ async def get_obashi(
             "mobile": "📱 Mobile",
         }.get(app.app_type or "", app.app_type or "App")
 
-        nodes.append(OBASHINode(
+        nodes.append(BasisNode(
             id=a_node_id,
             label=app.name,
             sublabel=f"{type_label}" + (f" · v{app.version}" if app.version else ""),
@@ -171,18 +172,62 @@ async def get_obashi(
         ))
 
         # Kante: B → A
-        edges.append(OBASHIEdge(from_id=b_node_id, to_id=a_node_id))
+        edges.append(BasisEdge(from_id=b_node_id, to_id=a_node_id))
 
         # Kante: App-Owner → A (wenn vorhanden)
         if app.owner_id and app.owner_id in app_owner_ids:
-            edges.append(OBASHIEdge(from_id=app_owner_ids[app.owner_id], to_id=a_node_id))
+            edges.append(BasisEdge(from_id=app_owner_ids[app.owner_id], to_id=a_node_id))
+
+    # -----------------------------------------------------------------------
+    # C – Components: genutzte SBOM-Pakete je Fachanwendung (regelbasiert).
+    #     Systeme der App werden hieraus abgeleitet (Paket-Vorkommen).
+    # -----------------------------------------------------------------------
+    component_asset_ids: set[str] = set()
+    for app in applications:
+        comps = (await session.execute(
+            select(ApplicationComponent).where(ApplicationComponent.application_id == app.id)
+        )).scalars().all()
+        a_node_id = f"A-{app.id}"
+        for comp in comps:
+            stmt = (
+                select(SBOMEntry.asset_id, SBOMEntry.pkg_version)
+                .join(Asset, Asset.id == SBOMEntry.asset_id)
+                .where(
+                    component_condition(comp.match_kind, comp.match_value),
+                    Asset.is_active == True, Asset.is_archived == False,
+                )
+            )
+            if comp.asset_id:
+                stmt = stmt.where(SBOMEntry.asset_id == comp.asset_id)
+            rows = (await session.execute(stmt)).all()
+
+            versions = sorted({r.pkg_version for r in rows})
+            ver_label = ", ".join(versions[:3]) + (f" +{len(versions)-3}" if len(versions) > 3 else "")
+            c_node_id = f"C-{comp.id}"
+            nodes.append(BasisNode(
+                id=c_node_id,
+                label=comp.name,
+                sublabel=ver_label or comp.match_value,
+                layer="C",
+                meta={
+                    "match_kind": comp.match_kind,
+                    "match_value": comp.match_value,
+                    "origin": comp.origin,
+                    "confirmed": comp.confirmed,
+                    "system_count": len({str(r.asset_id) for r in rows}),
+                },
+            ))
+            edges.append(BasisEdge(from_id=a_node_id, to_id=c_node_id))
+            for r in rows:
+                component_asset_ids.add(str(r.asset_id))
+                edges.append(BasisEdge(from_id=c_node_id, to_id=f"H-{r.asset_id}"))
 
     # -----------------------------------------------------------------------
     # Assets für H + S + I:
-    # Quelle 1: asset_ids der Anwendungen (primär — über OBASHI-Editor verknüpft)
+    # Quelle 1: asset_ids der Anwendungen (primär — über BASIS-Editor verknüpft)
     # Quelle 2: process_assets (alt — direkte Prozess-Asset-Zuordnung)
     # -----------------------------------------------------------------------
-    all_asset_ids: set[str] = set()
+    all_asset_ids: set[str] = set(component_asset_ids)  # Quelle 0: aus Komponenten abgeleitet
 
     # Quelle 1: aus den Anwendungen
     for app in applications:
@@ -216,7 +261,7 @@ async def get_obashi(
         # H – Hardware
         # -------------------------------------------------------------------
         h_node_id = f"H-{asset.id}"
-        nodes.append(OBASHINode(
+        nodes.append(BasisNode(
             id=h_node_id,
             label=asset.hostname or str(asset.ip_address),
             sublabel=(f"{asset.manufacturer} {asset.model}".strip()
@@ -237,12 +282,12 @@ async def get_obashi(
         for app in applications:
             if app.asset_ids and str(asset.id) in [str(aid) for aid in app.asset_ids]:
                 a_node_id = f"A-{app.id}"
-                edges.append(OBASHIEdge(from_id=a_node_id, to_id=h_node_id))
+                edges.append(BasisEdge(from_id=a_node_id, to_id=h_node_id))
                 linked_to_app = True
 
         # Fallback: B → H wenn keine App verknüpft
         if not linked_to_app:
-            edges.append(OBASHIEdge(from_id=b_node_id, to_id=h_node_id))
+            edges.append(BasisEdge(from_id=b_node_id, to_id=h_node_id))
 
         # -------------------------------------------------------------------
         # S – System (OS + relevante System-Software aus SBOM)
@@ -262,7 +307,7 @@ async def get_obashi(
             if len(sys_pkgs) > 4:
                 pkg_summary += f" +{len(sys_pkgs)-4}"
 
-            nodes.append(OBASHINode(
+            nodes.append(BasisNode(
                 id=s_node_id,
                 label=f"{asset.os_name} {asset.os_version or ''}".strip(),
                 sublabel=pkg_summary or "Kein SBOM",
@@ -279,7 +324,7 @@ async def get_obashi(
                     ],
                 },
             ))
-            edges.append(OBASHIEdge(from_id=h_node_id, to_id=s_node_id))
+            edges.append(BasisEdge(from_id=h_node_id, to_id=s_node_id))
 
         # -------------------------------------------------------------------
         # I – Infrastructure
@@ -291,7 +336,7 @@ async def get_obashi(
         if len(ports) > 4:
             port_str += f" +{len(ports)-4}"
 
-        nodes.append(OBASHINode(
+        nodes.append(BasisNode(
             id=i_node_id,
             label=asset.exposure_level,
             sublabel=f"Ports: {port_str}" if port_str else "Keine Ports",
@@ -303,9 +348,9 @@ async def get_obashi(
                 "total_ports": len(ports),
             },
         ))
-        edges.append(OBASHIEdge(from_id=h_node_id, to_id=i_node_id))
+        edges.append(BasisEdge(from_id=h_node_id, to_id=i_node_id))
 
-    return OBASHIDiagram(
+    return BasisDiagram(
         process_id=str(process_id),
         process_name=process.name,
         nodes=nodes,

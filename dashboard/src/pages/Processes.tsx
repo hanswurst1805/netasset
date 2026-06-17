@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Owner, type AppEntity } from '../api/client'
 import Badge from '../components/Badge'
-import OBASHIDiagram from '../components/OBASHIDiagram'
+import BasisDiagram from '../components/BasisDiagram'
 import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -22,10 +22,10 @@ function CriticalityBar({ value }: { value: number }) {
 
 async function fetchObashi(id: string) {
   const token = localStorage.getItem('token')
-  const res = await fetch(`/api/v1/processes/${id}/obashi`, {
+  const res = await fetch(`/api/v1/processes/${id}/basis`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!res.ok) throw new Error('OBASHI-Daten konnten nicht geladen werden')
+  if (!res.ok) throw new Error('BASIS-Daten konnten nicht geladen werden')
   return res.json()
 }
 
@@ -82,7 +82,7 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['apps', processId] })
-      qc.invalidateQueries({ queryKey: ['obashi', processId] })
+      qc.invalidateQueries({ queryKey: ['basis', processId] })
       setShowNew(false)
       setForm({ name: '', app_type: 'web', version: '', url: '', description: '', owner_id: '', criticality: '', process_id: processId })
     },
@@ -92,7 +92,7 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
     mutationFn: (id: string) => api.applications.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['apps', processId] })
-      qc.invalidateQueries({ queryKey: ['obashi', processId] })
+      qc.invalidateQueries({ queryKey: ['basis', processId] })
     },
   })
 
@@ -316,12 +316,12 @@ function OwnerManagement({ onClose }: { onClose: () => void }) {
 // Prozess-Zeile
 // ---------------------------------------------------------------------------
 
-type ViewMode = 'obashi' | 'risk' | 'apps'
+type ViewMode = 'basis' | 'risk' | 'apps'
 
 function ProcessRow({ process }: { process: any }) {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [view, setView] = useState<ViewMode>('obashi')
+  const [view, setView] = useState<ViewMode>('basis')
 
   const { data: owners = [] } = useQuery({ queryKey: ['owners'], queryFn: api.owners.list })
 
@@ -337,10 +337,10 @@ function ProcessRow({ process }: { process: any }) {
     enabled: open && view === 'risk',
   })
 
-  const { data: obashi } = useQuery({
-    queryKey: ['obashi', process.id],
+  const { data: basis } = useQuery({
+    queryKey: ['basis', process.id],
     queryFn: () => fetchObashi(process.id),
-    enabled: open && view === 'obashi',
+    enabled: open && view === 'basis',
   })
 
   // Owner zuweisen
@@ -352,7 +352,7 @@ function ProcessRow({ process }: { process: any }) {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['processes'] })
-      qc.invalidateQueries({ queryKey: ['obashi', process.id] })
+      qc.invalidateQueries({ queryKey: ['basis', process.id] })
     },
   })
 
@@ -399,7 +399,7 @@ function ProcessRow({ process }: { process: any }) {
           <div className="flex items-center gap-3 px-4 pt-3 pb-0">
             <div className="flex gap-1">
               {[
-                { id: 'obashi', icon: Layers, label: 'BASIS' },
+                { id: 'basis', icon: Layers, label: 'BASIS' },
                 { id: 'apps', icon: Settings2, label: 'Anwendungen' },
                 { id: 'risk', icon: BarChart2, label: 'CVE-Risiko' },
               ].map(({ id, icon: Icon, label }) => (
@@ -425,18 +425,18 @@ function ProcessRow({ process }: { process: any }) {
             </div>
           </div>
 
-          {/* OBASHI View */}
-          {view === 'obashi' && (
+          {/* BASIS View */}
+          {view === 'basis' && (
             <div className="p-4">
-              {!obashi && <div className="text-gray-500 text-sm py-4 text-center">Lade…</div>}
-              {obashi && obashi.nodes.length === 0 && (
+              {!basis && <div className="text-gray-500 text-sm py-4 text-center">Lade…</div>}
+              {basis && basis.nodes.length === 0 && (
                 <div className="text-gray-600 text-sm py-4 text-center">
                   Keine Daten. Anwendungen anlegen und Assets zuordnen.
                 </div>
               )}
-              {obashi && obashi.nodes.length > 0 && (
+              {basis && basis.nodes.length > 0 && (
                 <div className="rounded-lg overflow-hidden border border-gray-800">
-                  <OBASHIDiagram data={obashi} />
+                  <BasisDiagram data={basis} />
                 </div>
               )}
             </div>

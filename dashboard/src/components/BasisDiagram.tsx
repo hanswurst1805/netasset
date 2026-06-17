@@ -1,7 +1,7 @@
 /**
- * OBASHI-Diagramm-Komponente
+ * BASIS-Diagramm-Komponente
  *
- * Zeichnet den OBASHI-Baum als Layered-Diagram:
+ * Zeichnet den BASIS-Baum als Layered-Diagram:
  *   O ─ Owners
  *   B ─ Business
  *   A ─ Application
@@ -19,7 +19,7 @@ import { useState, useRef } from 'react'
 // Typen
 // ---------------------------------------------------------------------------
 
-interface OBASHINode {
+interface BasisNode {
   id: string
   label: string
   sublabel?: string
@@ -27,7 +27,7 @@ interface OBASHINode {
   meta: Record<string, any>
 }
 
-interface OBASHIEdge {
+interface BasisEdge {
   from_id: string
   to_id: string
 }
@@ -35,18 +35,19 @@ interface OBASHIEdge {
 interface DiagramData {
   process_id: string
   process_name: string
-  nodes: OBASHINode[]
-  edges: OBASHIEdge[]
+  nodes: BasisNode[]
+  edges: BasisEdge[]
 }
 
 // ---------------------------------------------------------------------------
-// Layer-Konfiguration (OBASHI-Reihenfolge)
+// Layer-Konfiguration (BASIS-Reihenfolge)
 // ---------------------------------------------------------------------------
 
 const LAYERS = [
   { id: 'O', label: 'Owners',         color: '#7c3aed', bg: '#1e1033', border: '#6d28d9' },
   { id: 'B', label: 'Business',       color: '#2563eb', bg: '#0f1c3e', border: '#1d4ed8' },
   { id: 'A', label: 'Application',    color: '#059669', bg: '#0c2419', border: '#047857' },
+  { id: 'C', label: 'Components',     color: '#0891b2', bg: '#08232b', border: '#0e7490' },
   { id: 'S', label: 'System',         color: '#d97706', bg: '#1f1508', border: '#b45309' },
   { id: 'H', label: 'Hardware',       color: '#ea580c', bg: '#1f0d04', border: '#c2410c' },
   { id: 'I', label: 'Infrastructure', color: '#dc2626', bg: '#1f0808', border: '#b91c1c' },
@@ -64,7 +65,7 @@ function Node({
   selected,
   onSelect,
 }: {
-  node: OBASHINode
+  node: BasisNode
   x: number; y: number; width: number; height: number
   selected: boolean
   onSelect: () => void
@@ -115,7 +116,7 @@ function Node({
 // Detail-Panel
 // ---------------------------------------------------------------------------
 
-function DetailPanel({ node, onClose }: { node: OBASHINode; onClose: () => void }) {
+function DetailPanel({ node, onClose }: { node: BasisNode; onClose: () => void }) {
   const layer = LAYER_MAP[node.layer]
   return (
     <div className="absolute right-0 top-0 w-72 bg-gray-900 border rounded-xl p-4 shadow-2xl z-10"
@@ -160,12 +161,12 @@ const ROW_H = 100
 const LABEL_W = 120
 const PADDING = 24
 
-export default function OBASHIDiagram({ data }: { data: DiagramData }) {
-  const [selected, setSelected] = useState<OBASHINode | null>(null)
+export default function BasisDiagram({ data }: { data: DiagramData }) {
+  const [selected, setSelected] = useState<BasisNode | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   // Nodes nach Layer gruppieren
-  const byLayer = Object.fromEntries(LAYERS.map(l => [l.id, [] as OBASHINode[]]))
+  const byLayer = Object.fromEntries(LAYERS.map(l => [l.id, [] as BasisNode[]]))
   data.nodes.forEach(n => {
     if (byLayer[n.layer]) byLayer[n.layer].push(n)
   })

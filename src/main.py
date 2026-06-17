@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-from src.api import app_settings, applications, assets, auth, cards, conflicts, cve, discovery, export, gateways, networks, obashi, owners, processes, reports, reporting, sbom, sessions, snapshots
+from src.api import app_settings, applications, assets, auth, basis, cards, conflicts, cve, discovery, export, gateways, networks, owners, processes, reports, reporting, sbom, sessions, snapshots
 from src.core.auth import hash_password
 from src.core.config import settings
 from src.core.database import async_session_factory
@@ -61,7 +61,7 @@ app.include_router(assets.router,    prefix="/api/v1/assets",   tags=["Assets"])
 app.include_router(sbom.router,      prefix="/api/v1/sbom",     tags=["SBOM"])
 app.include_router(cve.router,       prefix="/api/v1/cve",      tags=["CVE & Security"])
 app.include_router(processes.router, prefix="/api/v1/processes", tags=["Business Processes"])
-app.include_router(obashi.router,       prefix="/api/v1",                tags=["OBASHI"])
+app.include_router(basis.router,        prefix="/api/v1",                tags=["BASIS"])
 app.include_router(owners.router,       prefix="/api/v1/owners",         tags=["Owners"])
 app.include_router(conflicts.router,    prefix="/api/v1/conflicts",      tags=["Conflicts"])
 app.include_router(gateways.router,     prefix="/api/v1/gateways",       tags=["Network Gateways"])

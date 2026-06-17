@@ -13,7 +13,7 @@ import NetworkTopology from './pages/NetworkTopology'
 import Networks from './pages/Networks'
 import Reporting from './pages/Reporting'
 import CardExport from './pages/CardExport'
-import OBASHIEditor from './pages/OBASHIEditor'
+import BasisEditor from './pages/BasisEditor'
 import Sessions from './pages/Sessions'
 
 const queryClient = new QueryClient({
@@ -47,7 +47,7 @@ export default function App() {
                   <Route path="/networks" element={<Networks />} />
                   <Route path="/reporting" element={<Reporting />} />
                   <Route path="/cards" element={<CardExport />} />
-                  <Route path="/basis" element={<OBASHIEditor />} />
+                  <Route path="/basis" element={<BasisEditor />} />
                   <Route path="/sessions" element={<Sessions />} />
                 </Routes>
               </Layout>
