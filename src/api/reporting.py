@@ -239,6 +239,10 @@ class VulnPackage(BaseModel):
     affected_assets: list[str]   # hostnames
     max_risk_score: float
     risk_level: str
+    # Fachliche Einordnung über die Komponenten-Schicht (welche Anwendung
+    # nutzt dieses Paket → welcher Prozess)
+    affected_applications: list[str] = []
+    affected_processes: list[str] = []
 
 
 class SBOMVulnerabilityReport(BaseModel):
@@ -266,6 +270,7 @@ async def sbom_vulnerabilities(
 
     # Nach CVE+Paket gruppieren
     findings: dict[tuple, VulnPackage] = {}
+    finding_asset_ids: dict[tuple, set] = {}   # key -> set(asset_id) für Komponenten-Mapping
     severity_count: dict[str, int] = {}
     pkg_names: set[str] = set()
 
@@ -278,6 +283,7 @@ async def sbom_vulnerabilities(
 
         key = (imp.cve_id, imp.affected_pkg or "", imp.affected_ver or "")
         hostname = imp.asset.hostname or imp.asset.ip_address or str(imp.asset.id)
+        finding_asset_ids.setdefault(key, set()).add(imp.asset.id)
 
         if key not in findings:
             findings[key] = VulnPackage(
@@ -298,6 +304,58 @@ async def sbom_vulnerabilities(
                 findings[key].max_risk_score = imp.risk_score or 0
 
         pkg_names.add(imp.affected_pkg or "")
+
+    # -----------------------------------------------------------------------
+    # Komponenten-Schicht: welche Fachanwendung/Prozess nutzt das Paket?
+    # Reverse-Index (asset_id, paket) → Anwendungen, gegen die SBOM aufgelöst.
+    # -----------------------------------------------------------------------
+    vuln_pkg_names = {p.lower() for p in pkg_names if p}
+    if vuln_pkg_names:
+        comps = (await session.execute(select(ApplicationComponent))).scalars().all()
+        pair_to_apps: dict[tuple, set] = {}
+        for comp in comps:
+            stmt = (
+                select(SBOMEntry.asset_id, SBOMEntry.pkg_name)
+                .join(Asset, Asset.id == SBOMEntry.asset_id)
+                .where(
+                    component_condition(comp.match_kind, comp.match_value),
+                    Asset.is_active == True, Asset.is_archived == False,
+                )
+            )
+            if comp.asset_id:
+                stmt = stmt.where(SBOMEntry.asset_id == comp.asset_id)
+            for aid, pname in (await session.execute(stmt)).all():
+                if pname.lower() in vuln_pkg_names:
+                    pair_to_apps.setdefault((aid, pname.lower()), set()).add(comp.application_id)
+
+        if pair_to_apps:
+            app_ids = {a for s in pair_to_apps.values() for a in s}
+            apps_map = {
+                a.id: a for a in (await session.execute(
+                    select(Application).where(Application.id.in_(app_ids))
+                )).scalars().all()
+            }
+            proc_ids = {a.process_id for a in apps_map.values() if a.process_id}
+            proc_map = {
+                p.id: p.name for p in (await session.execute(
+                    select(BusinessProcess).where(BusinessProcess.id.in_(proc_ids))
+                )).scalars().all()
+            } if proc_ids else {}
+
+            for key, vp in findings.items():
+                pkg_lower = (key[1] or "").lower()
+                app_set: set = set()
+                for aid in finding_asset_ids.get(key, set()):
+                    app_set |= pair_to_apps.get((aid, pkg_lower), set())
+                if app_set:
+                    vp.affected_applications = sorted({
+                        apps_map[a].name for a in app_set if a in apps_map
+                    })
+                    vp.affected_processes = sorted({
+                        proc_map[apps_map[a].process_id]
+                        for a in app_set
+                        if a in apps_map and apps_map[a].process_id in proc_map
+                    })
 
     sorted_findings = sorted(findings.values(), key=lambda x: x.max_risk_score, reverse=True)
 

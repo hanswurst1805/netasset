@@ -373,6 +373,7 @@ function SBOMVulnerabilityReport() {
               <th className="text-left px-4 py-2">CVSS</th>
               <th className="text-left px-4 py-2">Schwere</th>
               <th className="text-left px-4 py-2">Betroffene Assets</th>
+              <th className="text-left px-4 py-2">Fachanwendung → Prozess</th>
             </tr>
           </thead>
           <tbody>
@@ -392,6 +393,22 @@ function SBOMVulnerabilityReport() {
                       <span className="text-xs text-gray-600">+{f.affected_assets.length - 3}</span>
                     )}
                   </div>
+                </td>
+                <td className="px-4 py-2">
+                  {(f.affected_applications?.length || f.affected_processes?.length) ? (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex gap-1 flex-wrap">
+                        {f.affected_applications.map((a: string) => (
+                          <span key={a} className="text-xs bg-cyan-900/50 text-cyan-300 border border-cyan-800 px-1.5 py-0.5 rounded">{a}</span>
+                        ))}
+                      </div>
+                      {f.affected_processes?.length > 0 && (
+                        <span className="text-xs text-gray-500">→ {f.affected_processes.join(', ')}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-700" title="Keiner Fachanwendung zugeordnet">—</span>
+                  )}
                 </td>
               </tr>
             ))}
