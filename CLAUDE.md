@@ -61,7 +61,9 @@ netasset/
 │   ├── 0008_last_seen_at.py         ← assets.last_seen_at
 │   ├── 0009_asset_snapshots.py      ← Tägliche Snapshots
 │   ├── 0010_asset_reports.py        ← Lynis/Audit-Reports
-│   └── 0011_min_confidence.py       ← assets.min_confidence
+│   ├── 0011_min_confidence.py       ← assets.min_confidence
+│   ├── 0020_audit_sessions.py       ← Jumpbox-Session-Aufzeichnung
+│   └── 0021_application_components.py ← A↔S Zwischenschicht (App nutzt SBOM-Paket)
 ├── src/
 │   ├── api/
 │   │   ├── assets.py          ← Asset CRUD (mit Tag-Filter, min_confidence)
@@ -149,6 +151,14 @@ I – Infrastructure Netzwerk, Exposure, Ports, VLANs    [ip_networks, gateways]
 ```
 
 **Wichtig:** A-Layer = fachliche Apps (nginx ist S-Layer, nicht A-Layer!)
+
+**A↔S Zwischenschicht (`application_components`):** Mapping „Fachanwendung nutzt
+SBOM-Paket" als Regel auf Paket-Identität (`match_kind`: name/prefix/purl/cpe),
+aufgelöst gegen die SBOM. Kombiniert manuell (`origin=manual`) und Automation
+(`POST /applications/{id}/components/autodiscover`, `origin=auto, confirmed=false`).
+Systeme werden aus den Paket-Vorkommen abgeleitet; optionales `asset_id` grenzt
+breite Pakete (openssl, glibc) auf ein System ein. CVE-Rollup: Komponente →
+App → Prozess → Owner.
 
 ---
 

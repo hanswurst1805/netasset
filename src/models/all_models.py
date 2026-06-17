@@ -124,6 +124,51 @@ class Application(Base):
 
     process: Mapped["BusinessProcess"] = relationship(back_populates="applications")
     owner: Mapped[Optional["Owner"]] = relationship()
+    components: Mapped[list["ApplicationComponent"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+
+
+# ---------------------------------------------------------------------------
+# A↔S Zwischenschicht: Application Components
+# Welche SBOM-Pakete eine Fachanwendung nutzt – als Regel auf Paket-Identität,
+# die gegen die SBOM aufgelöst wird (überlebt Rescans, gilt über Systeme).
+# ---------------------------------------------------------------------------
+
+class ApplicationComponent(Base):
+    """
+    Verknüpfung Fachanwendung ↔ genutztes SBOM-Paket (Regel, nicht konkrete Zeile).
+
+    Auflösung: match_value wird je nach match_kind gegen sbom_entries gematcht;
+    daraus ergeben sich konkrete Versionen, Systeme (asset_id) und CVEs.
+    """
+    __tablename__ = "application_components"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+
+    name: Mapped[str] = mapped_column(String(300), nullable=False)          # Anzeige, z.B. "OpenSSL"
+    match_kind: Mapped[str] = mapped_column(String(20), default="name")     # name | prefix | purl | cpe
+    match_value: Mapped[str] = mapped_column(String(500), nullable=False)   # z.B. "openssl"
+
+    # Optionale Eingrenzung auf ein bestimmtes System (gegen Über-Zuordnung
+    # bei sehr verbreiteten Paketen wie openssl/glibc)
+    asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    origin: Mapped[str] = mapped_column(String(20), default="manual")       # manual | auto
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=False)         # Auto-Vorschlag bestätigt?
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    application: Mapped["Application"] = relationship(back_populates="components")
+
+    __table_args__ = (
+        UniqueConstraint("application_id", "match_kind", "match_value", "asset_id",
+                         name="uq_app_component"),
+    )
 
 
 # ---------------------------------------------------------------------------
