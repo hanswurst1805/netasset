@@ -22,9 +22,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.auth import AuthContext, get_current_user
+from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
-    Asset, BusinessProcess, CVEEntry, CVEImpact,
+    Application, ApplicationComponent, Asset, BusinessProcess, CVEEntry, CVEImpact,
     ProcessAsset, SBOMEntry,
 )
 
@@ -324,6 +325,10 @@ class ProcessRiskItem(BaseModel):
     max_risk_score: float
     top_cves: list[dict]
     risk_rating: str   # KRITISCH / HOCH / MITTEL / NIEDRIG
+    # Grundlage der Bewertung: "components" (über Fachanwendung→Paket) oder
+    # "assets" (Fallback: alle Pakete der Prozess-Assets, wenn keine Komponenten)
+    risk_basis: str = "components"
+    component_count: int = 0
 
 
 class ProcessRiskReport(BaseModel):
@@ -341,49 +346,21 @@ async def process_risk(
     processes = (await session.execute(select(BusinessProcess))).scalars().all()
     findings: list[ProcessRiskItem] = []
 
-    for proc in processes:
-        # Asset-IDs des Prozesses (nur aktive, nicht-archivierte Assets)
-        pa_result = await session.execute(
-            select(ProcessAsset.asset_id)
-            .join(Asset, Asset.id == ProcessAsset.asset_id)
-            .where(
-                ProcessAsset.process_id == proc.id,
-                Asset.is_active == True,
-                Asset.is_archived == False,
-            )
-        )
-        asset_ids = [row[0] for row in pa_result]
-
-        if not asset_ids:
-            findings.append(ProcessRiskItem(
-                process_id=str(proc.id),
-                process_name=proc.name,
-                criticality=proc.criticality,
-                asset_count=0,
-                high_count=0, medium_count=0, low_count=0,
-                max_risk_score=0.0, top_cves=[],
-                risk_rating="NIEDRIG",
-            ))
-            continue
-
-        # CVE-Impacts für alle Assets
-        imp_result = await session.execute(
-            select(CVEImpact)
-            .where(CVEImpact.asset_id.in_(asset_ids))
-            .order_by(desc(CVEImpact.risk_score))
-        )
-        impacts = imp_result.scalars().all()
-
+    def _build(proc, impacts, asset_count, component_count, basis) -> ProcessRiskItem:
         high   = sum(1 for i in impacts if i.risk_level == "HIGH")
         medium = sum(1 for i in impacts if i.risk_level == "MEDIUM")
         low    = sum(1 for i in impacts if i.risk_level == "LOW")
         max_score = max((i.risk_score or 0 for i in impacts), default=0.0)
-        top_cves = [
-            {"cve_id": i.cve_id, "risk_score": i.risk_score, "risk_level": i.risk_level}
-            for i in impacts[:3]
-        ]
+        # Top-CVEs nach Risiko, dedupliziert
+        top_cves, seen = [], set()
+        for i in sorted(impacts, key=lambda x: x.risk_score or 0, reverse=True):
+            if i.cve_id in seen:
+                continue
+            seen.add(i.cve_id)
+            top_cves.append({"cve_id": i.cve_id, "risk_score": i.risk_score, "risk_level": i.risk_level})
+            if len(top_cves) >= 3:
+                break
 
-        # Risikobewertung kombiniert aus Kritikalität + CVE-Schwere
         if high > 0 and proc.criticality >= 4:
             rating = "KRITISCH"
         elif high > 0 or (medium > 2 and proc.criticality >= 3):
@@ -393,16 +370,86 @@ async def process_risk(
         else:
             rating = "NIEDRIG"
 
-        findings.append(ProcessRiskItem(
+        return ProcessRiskItem(
             process_id=str(proc.id),
             process_name=proc.name,
             criticality=proc.criticality,
-            asset_count=len(asset_ids),
+            asset_count=asset_count,
             high_count=high, medium_count=medium, low_count=low,
             max_risk_score=round(max_score, 2),
             top_cves=top_cves,
             risk_rating=rating,
-        ))
+            risk_basis=basis,
+            component_count=component_count,
+        )
+
+    for proc in processes:
+        # 1. Bevorzugt: Komponenten-basiert (Fachanwendung → genutztes Paket)
+        app_ids = (await session.execute(
+            select(Application.id).where(
+                Application.process_id == proc.id, Application.is_active == True
+            )
+        )).scalars().all()
+
+        comps = []
+        if app_ids:
+            comps = (await session.execute(
+                select(ApplicationComponent).where(
+                    ApplicationComponent.application_id.in_(app_ids)
+                )
+            )).scalars().all()
+
+        if comps:
+            # Komponenten gegen SBOM auflösen → (asset_id, paket) Paare
+            pairs: set[tuple] = set()
+            systems: set = set()
+            for comp in comps:
+                stmt = (
+                    select(SBOMEntry.asset_id, SBOMEntry.pkg_name)
+                    .join(Asset, Asset.id == SBOMEntry.asset_id)
+                    .where(
+                        component_condition(comp.match_kind, comp.match_value),
+                        Asset.is_active == True, Asset.is_archived == False,
+                    )
+                )
+                if comp.asset_id:
+                    stmt = stmt.where(SBOMEntry.asset_id == comp.asset_id)
+                for aid, pname in (await session.execute(stmt)).all():
+                    pairs.add((aid, pname.lower()))
+                    systems.add(aid)
+
+            impacts = []
+            if pairs:
+                pkg_names = {p for _, p in pairs}
+                raw = (await session.execute(
+                    select(CVEImpact).where(
+                        CVEImpact.asset_id.in_(systems),
+                        func.lower(CVEImpact.affected_pkg).in_(pkg_names),
+                    )
+                )).scalars().all()
+                # nur exakte (System, Paket)-Treffer der Komponenten zählen
+                impacts = [i for i in raw if (i.asset_id, (i.affected_pkg or "").lower()) in pairs]
+
+            findings.append(_build(proc, impacts, len(systems), len(comps), "components"))
+            continue
+
+        # 2. Fallback: asset-basiert (keine Komponenten definiert)
+        asset_ids = [row[0] for row in (await session.execute(
+            select(ProcessAsset.asset_id)
+            .join(Asset, Asset.id == ProcessAsset.asset_id)
+            .where(
+                ProcessAsset.process_id == proc.id,
+                Asset.is_active == True, Asset.is_archived == False,
+            )
+        ))]
+
+        impacts = []
+        if asset_ids:
+            impacts = (await session.execute(
+                select(CVEImpact).where(CVEImpact.asset_id.in_(asset_ids))
+            )).scalars().all()
+
+        findings.append(_build(proc, impacts, len(asset_ids), 0, "assets"))
 
     findings.sort(key=lambda x: (
         {"KRITISCH": 3, "HOCH": 2, "MITTEL": 1, "NIEDRIG": 0}.get(x.risk_rating, 0),

@@ -454,7 +454,11 @@ function ProcessRiskReport() {
                   <div key={i} className={`w-3 h-2 rounded-sm ${i <= f.criticality ? 'bg-indigo-500' : 'bg-gray-700'}`} />
                 ))}
               </div>
-              <span className="text-xs text-gray-500">{f.asset_count} Assets</span>
+              <span className="text-xs text-gray-500">
+                {f.risk_basis === 'components'
+                  ? `${f.component_count} Komponenten · ${f.asset_count} Systeme`
+                  : `${f.asset_count} Assets · pauschal`}
+              </span>
             </div>
             <div className="flex gap-3 text-xs">
               {f.high_count > 0 && <span className="text-red-400 font-bold">{f.high_count} HIGH</span>}
