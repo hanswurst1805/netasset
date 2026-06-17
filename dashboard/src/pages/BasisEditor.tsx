@@ -36,6 +36,19 @@ const api = {
   apps:     { list: (pid?: string) => apiFetch(`/api/v1/applications${pid ? '?process_id='+pid : ''}`), create: (b: any) => apiFetch('/api/v1/applications', { method: 'POST', body: JSON.stringify(b) }), update: (id: string, b: any) => apiFetch(`/api/v1/applications/${id}`, { method: 'PUT', body: JSON.stringify(b) }), delete: (id: string) => apiFetch(`/api/v1/applications/${id}`, { method: 'DELETE' }) },
   assets:   { list: () => apiFetch('/api/v1/assets?limit=200') },
   sbom:     { get: (id: string) => apiFetch(`/api/v1/sbom/assets/${id}/sbom`) },
+  components: {
+    list:         (appId: string) => apiFetch(`/api/v1/applications/${appId}/components`),
+    add:          (appId: string, b: any) => apiFetch(`/api/v1/applications/${appId}/components`, { method: 'POST', body: JSON.stringify(b) }),
+    autodiscover: (appId: string) => apiFetch(`/api/v1/applications/${appId}/components/autodiscover`, { method: 'POST' }),
+    confirm:      (appId: string, cid: string) => apiFetch(`/api/v1/applications/${appId}/components/${cid}/confirm`, { method: 'POST' }),
+    delete:       (appId: string, cid: string) => apiFetch(`/api/v1/applications/${appId}/components/${cid}`, { method: 'DELETE' }),
+  },
+}
+
+const RISK_BADGE: Record<string, string> = {
+  HIGH:   'bg-red-900/60 text-red-300 border-red-700',
+  MEDIUM: 'bg-yellow-900/60 text-yellow-300 border-yellow-700',
+  LOW:    'bg-blue-900/60 text-blue-300 border-blue-700',
 }
 
 const APP_TYPES = ['web', 'api', 'batch', 'integration', 'service', 'desktop', 'mobile', 'other']
@@ -295,6 +308,85 @@ function AppEditor({ app, processId, assets, onSaved }: any) {
         className="w-full flex items-center justify-center gap-2 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm py-2 rounded-lg">
         <Check size={14} /> {save.isPending ? 'Speichern…' : 'Speichern'}
       </button>
+
+      {/* Komponenten (C-Layer) – nur bei bestehender App */}
+      {app?.id && <ComponentManager appId={app.id} />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Komponenten-Editor (C-Layer: genutzte SBOM-Pakete)
+// ---------------------------------------------------------------------------
+
+function ComponentManager({ appId }: { appId: string }) {
+  const qc = useQueryClient()
+  const key = ['app-components', appId]
+  const { data: comps = [], isLoading } = useQuery({ queryKey: key, queryFn: () => api.components.list(appId) })
+  const [newName, setNewName] = useState('')
+  const invalidate = () => qc.invalidateQueries({ queryKey: key })
+
+  const auto    = useMutation({ mutationFn: () => api.components.autodiscover(appId), onSuccess: invalidate })
+  const add     = useMutation({ mutationFn: (name: string) => api.components.add(appId, { name, match_kind: 'name', match_value: name.toLowerCase() }), onSuccess: () => { invalidate(); setNewName('') } })
+  const confirm = useMutation({ mutationFn: (cid: string) => api.components.confirm(appId, cid), onSuccess: invalidate })
+  const del     = useMutation({ mutationFn: (cid: string) => api.components.delete(appId, cid), onSuccess: invalidate })
+
+  return (
+    <div className="border-t border-gray-800 pt-3 mt-1">
+      <div className="flex items-center justify-between mb-2">
+        <label className="text-xs font-semibold text-cyan-400 flex items-center gap-1">
+          <Package size={11} /> Komponenten <span className="text-gray-600 font-normal">(C-Layer · genutzte SBOM-Pakete)</span>
+        </label>
+        <button onClick={() => auto.mutate()} disabled={auto.isPending}
+          className="text-xs flex items-center gap-1 bg-cyan-900/50 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded hover:bg-cyan-800/50 disabled:opacity-40">
+          <Settings2 size={10} /> {auto.isPending ? 'Suche…' : 'Auto-Discover'}
+        </button>
+      </div>
+
+      {/* Manuell hinzufügen */}
+      <div className="flex gap-1 mb-2">
+        <input className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none"
+          placeholder="Paketname (z.B. openssl)" value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) add.mutate(newName.trim()) }} />
+        <button onClick={() => newName.trim() && add.mutate(newName.trim())} disabled={!newName.trim() || add.isPending}
+          className="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2 rounded disabled:opacity-40">
+          <Plus size={11} />
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-xs text-gray-600 py-2">Lädt…</div>
+      ) : comps.length === 0 ? (
+        <div className="text-xs text-gray-600 py-2">Keine Komponenten. „Auto-Discover" nutzt die SBOM der verknüpften Assets.</div>
+      ) : (
+        <div className="space-y-1">
+          {comps.map((c: any) => (
+            <div key={c.id} className={`flex items-center gap-2 px-2 py-1.5 rounded border text-xs ${
+              c.origin === 'auto' && !c.confirmed ? 'border-dashed border-cyan-800/60 bg-cyan-950/20' : 'border-gray-800 bg-gray-800/40'
+            }`}>
+              <span className="font-mono text-gray-200 truncate">{c.name}</span>
+              {c.origin === 'auto' && !c.confirmed && <span className="text-cyan-500 shrink-0">Vorschlag</span>}
+              <span className="text-gray-600 shrink-0">{c.systems?.length || 0} Sys.</span>
+              {c.cve_count > 0 && (
+                <span className={`shrink-0 px-1.5 rounded border ${RISK_BADGE[c.max_risk_level] || 'bg-gray-800 text-gray-400 border-gray-700'}`}>
+                  {c.cve_count} CVE
+                </span>
+              )}
+              <div className="ml-auto flex items-center gap-1 shrink-0">
+                {c.origin === 'auto' && !c.confirmed && (
+                  <button onClick={() => confirm.mutate(c.id)} className="text-green-500 hover:text-green-400" title="Bestätigen">
+                    <Check size={12} />
+                  </button>
+                )}
+                <button onClick={() => del.mutate(c.id)} className="text-gray-600 hover:text-red-400" title="Entfernen">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
