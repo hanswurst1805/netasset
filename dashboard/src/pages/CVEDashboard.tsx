@@ -56,6 +56,22 @@ function ImpactPanel({ report }: { report: ImpactReport }) {
             </div>
           )}
 
+          {report.affected_applications?.length > 0 && (
+            <div>
+              <div className="text-xs text-gray-500 uppercase mb-2">Betroffene Fachanwendungen</div>
+              <div className="space-y-1">
+                {report.affected_applications.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm bg-gray-800/50 border border-cyan-900/40 rounded px-3 py-1.5">
+                    <span className="text-cyan-300 font-medium">{a.application}</span>
+                    {a.process && <span className="text-gray-500">→ {a.process}</span>}
+                    {a.criticality != null && <span className="text-xs text-gray-600">Krit. {a.criticality}/5</span>}
+                    {a.owner && <span className="text-xs text-gray-500 ml-auto">Owner: {a.owner}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {report.llm_analysis && (
             <div>
               <div className="text-xs text-gray-500 uppercase mb-2">KI-Analyse</div>

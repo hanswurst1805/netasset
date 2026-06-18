@@ -9,9 +9,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.components import component_condition
 from src.core.config import settings
 from src.core.llm import llm_complete
-from src.models.all_models import AppSettings, Asset, BusinessProcess, CVEEntry, CVEImpact, ProcessAsset, SBOMEntry
+from src.models.all_models import (
+    Application, ApplicationComponent, AppSettings, Asset, BusinessProcess,
+    CVEEntry, CVEImpact, Owner, ProcessAsset, SBOMEntry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +90,9 @@ class ImpactReport(BaseModel):
     affected_assets: list[AffectedAsset]
     llm_analysis: Optional[str] = None
     business_processes_at_risk: list[dict] = []
+    # Fachlicher Rollup über die Komponenten-Schicht:
+    # betroffenes Paket → Fachanwendung → Prozess → Owner
+    affected_applications: list[dict] = []
 
 
 def _risk_level(score: float) -> str:
@@ -235,6 +242,55 @@ async def get_cve_impact(
             for p in procs
         ]
 
+    # Komponenten-Rollup: betroffenes Paket → Fachanwendung → Prozess → Owner
+    affected_applications: list[dict] = []
+    if affected_assets:
+        affected_pairs = {(a.asset_id, a.affected_package.lower()) for a in affected_assets}
+        pkg_set = {p for _, p in affected_pairs}
+        comps = (await session.execute(select(ApplicationComponent))).scalars().all()
+
+        matched_app_ids: set = set()
+        for comp in comps:
+            stmt = (
+                select(SBOMEntry.asset_id, SBOMEntry.pkg_name)
+                .join(Asset, Asset.id == SBOMEntry.asset_id)
+                .where(
+                    component_condition(comp.match_kind, comp.match_value),
+                    Asset.is_active == True, Asset.is_archived == False,
+                )
+            )
+            if comp.asset_id:
+                stmt = stmt.where(SBOMEntry.asset_id == comp.asset_id)
+            for aid, pname in (await session.execute(stmt)).all():
+                if pname.lower() in pkg_set and (str(aid), pname.lower()) in affected_pairs:
+                    matched_app_ids.add(comp.application_id)
+                    break
+
+        if matched_app_ids:
+            apps = (await session.execute(
+                select(Application).where(Application.id.in_(matched_app_ids))
+            )).scalars().all()
+            proc_ids = {a.process_id for a in apps if a.process_id}
+            owner_ids = {a.owner_id for a in apps if a.owner_id}
+            pmap = {p.id: p for p in (await session.execute(
+                select(BusinessProcess).where(BusinessProcess.id.in_(proc_ids))
+            )).scalars().all()} if proc_ids else {}
+            # Owner sowohl von der App als auch vom Prozess berücksichtigen
+            owner_ids |= {p.owner_id for p in pmap.values() if p.owner_id}
+            omap = {o.id: o.name for o in (await session.execute(
+                select(Owner).where(Owner.id.in_(owner_ids))
+            )).scalars().all()} if owner_ids else {}
+
+            for a in sorted(apps, key=lambda x: x.name):
+                proc = pmap.get(a.process_id)
+                owner_id = a.owner_id or (proc.owner_id if proc else None)
+                affected_applications.append({
+                    "application": a.name,
+                    "process": proc.name if proc else None,
+                    "criticality": proc.criticality if proc else a.criticality,
+                    "owner": omap.get(owner_id) if owner_id else None,
+                })
+
     # CVEImpact-Cache aktualisieren
     for aa in affected_assets:
         stmt = select(CVEImpact).where(
@@ -274,4 +330,5 @@ async def get_cve_impact(
         affected_assets=affected_assets,
         llm_analysis=llm_analysis,
         business_processes_at_risk=processes_at_risk,
+        affected_applications=affected_applications,
     )

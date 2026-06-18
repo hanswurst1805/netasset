@@ -108,6 +108,7 @@ export interface ImpactReport {
   affected_assets: AffectedAsset[]
   llm_analysis: string | null
   business_processes_at_risk: { id: string; name: string; criticality: number }[]
+  affected_applications: { application: string; process: string | null; criticality: number | null; owner: string | null }[]
 }
 
 export interface Process {
