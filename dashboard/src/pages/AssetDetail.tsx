@@ -823,6 +823,9 @@ export default function AssetDetail() {
         </section>
       )}
 
+      {/* 2b. Dienste (Port → Prozess → SBOM-Paket, inkl. localhost/Docker) */}
+      <ServicesSection assetId={id!} />
+
       {/* 3. SBOM — aufklappbar */}
       <SbomSection sbom={sbom} />
 
@@ -831,5 +834,68 @@ export default function AssetDetail() {
       {/* Edit Modal */}
       {editing && <EditModal asset={asset} onClose={() => setEditing(false)} />}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Dienste-Sektion: Port → Prozess → SBOM-Paket (inkl. localhost / Docker)
+// ---------------------------------------------------------------------------
+
+function ServicesSection({ assetId }: { assetId: string }) {
+  const { data: services = [] } = useQuery({
+    queryKey: ['services', assetId],
+    queryFn: () => api.assets.services(assetId),
+    enabled: !!assetId,
+  })
+  if (services.length === 0) return null
+
+  const scopeBadge: Record<string, string> = {
+    localhost: 'bg-gray-800 text-gray-400 border-gray-700',
+    lan:       'bg-yellow-900/60 text-yellow-300 border-yellow-700',
+    all:       'bg-red-900/60 text-red-300 border-red-700',
+  }
+  const scopeLabel: Record<string, string> = {
+    localhost: 'nur localhost', lan: 'LAN', all: 'alle Interfaces',
+  }
+
+  return (
+    <section className="mb-6">
+      <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <Network size={14} /> Dienste ({services.length})
+      </h2>
+      <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase">
+              <th className="text-left px-4 py-2">Port</th>
+              <th className="text-left px-4 py-2">Erreichbarkeit</th>
+              <th className="text-left px-4 py-2">Prozess</th>
+              <th className="text-left px-4 py-2">SBOM-Paket</th>
+              <th className="text-left px-4 py-2">Container</th>
+            </tr>
+          </thead>
+          <tbody>
+            {services.map(s => (
+              <tr key={s.id} className="border-b border-gray-800">
+                <td className="px-4 py-2 font-mono text-indigo-400">{s.port}/{s.proto}</td>
+                <td className="px-4 py-2">
+                  <span className={`text-xs px-2 py-0.5 rounded border ${scopeBadge[s.bind_scope] || ''}`}>
+                    {scopeLabel[s.bind_scope] || s.bind_scope}
+                  </span>
+                  {s.bind_address && <span className="text-xs text-gray-600 ml-2 font-mono">{s.bind_address}</span>}
+                </td>
+                <td className="px-4 py-2 text-gray-400 font-mono text-xs">{s.process_name || '—'}</td>
+                <td className="px-4 py-2">
+                  {s.sbom_pkg
+                    ? <span className="text-xs bg-cyan-900/50 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded">{s.sbom_pkg}</span>
+                    : <span className="text-xs text-gray-700">nicht aufgelöst</span>}
+                </td>
+                <td className="px-4 py-2 text-gray-500 font-mono text-xs">{s.container_image || (s.container_name ?? '—')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }

@@ -8,12 +8,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_session
 from src.core.identity import ENRICHMENT_SOURCES, DeviceFingerprint, IdentityResolver, MatchResult
 from src.core.network_classifier import classify_asset_and_update
-from src.models.all_models import Asset, ConflictQueueEntry
+from src.core.services import bind_scope, resolve_service_pkg
+from src.models.all_models import Asset, ConflictQueueEntry, SBOMEntry, Service
 
 router = APIRouter()
 
@@ -36,6 +38,8 @@ class DiscoveredDevice(BaseModel):
     tags: Optional[list[str]] = None
     source: str = "discovery"
     min_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    # Lauschende Dienste (Port → Prozess → Container), inkl. localhost-Binds
+    services: Optional[list[dict]] = None
 
 
 class IngestResult(BaseModel):
@@ -45,6 +49,47 @@ class IngestResult(BaseModel):
     confidence: float
     matched_on: list[str]
     action: str  # created | merged | queued | skipped
+
+
+async def _store_services(asset_id, services: list[dict], source: str, session: AsyncSession) -> None:
+    """Ersetzt die von dieser Quelle gemeldeten Dienste eines Assets."""
+    await session.execute(
+        sa_delete(Service).where(Service.asset_id == asset_id, Service.source == source)
+    )
+    # SBOM des Assets für die Paket-Auflösung
+    sbom = (await session.execute(
+        select(SBOMEntry.pkg_name).where(SBOMEntry.asset_id == asset_id)
+    )).scalars().all()
+    sbom_lower = {s.lower(): s for s in sbom}
+
+    seen: set = set()
+    for s in services:
+        try:
+            port = int(s.get("port"))
+        except (TypeError, ValueError):
+            continue
+        proto = (s.get("proto") or "tcp").lower()
+        addr = s.get("bind_address") or s.get("address")
+        key = (port, proto, addr)
+        if port <= 0 or key in seen:
+            continue
+        seen.add(key)
+        session.add(Service(
+            asset_id=asset_id,
+            port=port,
+            proto=proto,
+            bind_address=addr,
+            bind_scope=s.get("bind_scope") or bind_scope(addr),
+            process_name=s.get("process_name"),
+            process_path=s.get("process_path"),
+            sbom_pkg=resolve_service_pkg(
+                s.get("process_name"), s.get("process_path"), s.get("container_image"), sbom_lower
+            ),
+            container_name=s.get("container_name"),
+            container_image=s.get("container_image"),
+            source=source,
+        ))
+    await session.flush()
 
 
 @router.post("/ingest", response_model=list[IngestResult])
@@ -104,14 +149,14 @@ async def ingest_devices(
             elif identity.confidence < min_conf:
                 action = "skipped"  # Konfidenz zu niedrig → ignorieren
             else:
-                merge_data = device.model_dump(exclude={"internal_id", "source"}, exclude_none=True)
+                merge_data = device.model_dump(exclude={"internal_id", "source", "services"}, exclude_none=True)
                 merge_data["source"] = device.source
                 await resolver.merge_data(identity.asset_id, merge_data)
                 action = "merged"
 
         elif identity.result == MatchResult.NEW:
             asset_data = device.model_dump(
-                exclude={"internal_id", "source"},
+                exclude={"internal_id", "source", "services"},
                 exclude_none=True,
             )
             asset = Asset(**asset_data)
@@ -150,6 +195,10 @@ async def ingest_devices(
                 session.add(entry)
                 await session.flush()
                 action = "queued"
+
+        # Dienste/Listener speichern (nur bei aktualisiertem/neuem Asset)
+        if device.services and action in ("merged", "created") and identity.asset_id:
+            await _store_services(identity.asset_id, device.services, device.source, session)
 
         results.append(
             IngestResult(

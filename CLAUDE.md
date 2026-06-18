@@ -64,7 +64,8 @@ netasset/
 │   ├── 0011_min_confidence.py       ← assets.min_confidence
 │   ├── 0020_audit_sessions.py       ← Jumpbox-Session-Aufzeichnung
 │   ├── 0021_application_components.py ← A↔S Zwischenschicht (App nutzt SBOM-Paket)
-│   └── 0022_fachanwendung_links.py   ← Fachanwendung n:m Prozess + Netz-Elemente
+│   ├── 0022_fachanwendung_links.py   ← Fachanwendung n:m Prozess + Netz-Elemente
+│   └── 0023_services.py              ← Listener: Port → Prozess → SBOM-Paket (inkl. localhost/Docker)
 ├── src/
 │   ├── api/
 │   │   ├── assets.py          ← Asset CRUD (mit Tag-Filter, min_confidence)

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import AuthContext, get_current_user
 from src.core.database import get_session
-from src.models.all_models import Asset, CVEEntry, CVEImpact
+from src.models.all_models import Asset, CVEEntry, CVEImpact, Service
 from src.rag.cve_impact import _is_vm, _is_vm_irrelevant_pkg, get_hide_vm_microcode_setting
 
 router = APIRouter()
@@ -296,6 +296,41 @@ async def get_asset(
         if not asset.tags or not set(asset.tags) & set(allowed):
             raise HTTPException(403, "Kein Zugriff auf dieses Asset")
     return asset
+
+
+class ServiceOut(BaseModel):
+    id: uuid.UUID
+    port: int
+    proto: str
+    bind_address: Optional[str]
+    bind_scope: str
+    process_name: Optional[str]
+    process_path: Optional[str]
+    sbom_pkg: Optional[str]
+    container_name: Optional[str]
+    container_image: Optional[str]
+    source: Optional[str]
+    model_config = {"from_attributes": True}
+
+
+@router.get("/{asset_id}/services", response_model=list[ServiceOut])
+async def asset_services(
+    asset_id: uuid.UUID,
+    ctx: AuthContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lauschende Dienste des Assets (Port → Prozess → SBOM-Paket, inkl. localhost/Docker)."""
+    asset = await session.get(Asset, asset_id)
+    if not asset:
+        raise HTTPException(404, f"Asset {asset_id} nicht gefunden")
+    if allowed := ctx.filter_tags():
+        if not asset.tags or not set(asset.tags) & set(allowed):
+            raise HTTPException(403, "Kein Zugriff auf dieses Asset")
+    rows = (await session.execute(
+        select(Service).where(Service.asset_id == asset_id)
+        .order_by(Service.bind_scope, Service.port)
+    )).scalars().all()
+    return rows
 
 
 @router.put("/{asset_id}", response_model=AssetOut)

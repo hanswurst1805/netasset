@@ -111,6 +111,20 @@ export interface ImpactReport {
   affected_applications: { application: string; process: string | null; criticality: number | null; owner: string | null }[]
 }
 
+export interface ServiceEntry {
+  id: string
+  port: number
+  proto: string
+  bind_address: string | null
+  bind_scope: 'localhost' | 'lan' | 'all'
+  process_name: string | null
+  process_path: string | null
+  sbom_pkg: string | null
+  container_name: string | null
+  container_image: string | null
+  source: string | null
+}
+
 export interface Process {
   id: string
   name: string
@@ -218,6 +232,7 @@ export const api = {
     list: (params?: Record<string, string>) =>
       req<Asset[]>('/assets?' + new URLSearchParams(params)),
     get: (id: string) => req<Asset>(`/assets/${id}`),
+    services: (id: string) => req<ServiceEntry[]>(`/assets/${id}/services`),
     update: (id: string, body: object) =>
       req<Asset>(`/assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     delete: (id: string) =>

@@ -373,6 +373,45 @@ class PortScan(Base):
 
 
 # ---------------------------------------------------------------------------
+# Services / Listener (Brücke I ↔ C/S): Port → Prozess → SBOM-Paket
+# ---------------------------------------------------------------------------
+
+class Service(Base):
+    """
+    Lauschender Dienst auf einem Asset.
+
+    Verbindet einen offenen Port (inkl. Bind-Adresse/-Scope, auch localhost)
+    mit dem dahinterliegenden Prozess und – aufgelöst – dem SBOM-Paket.
+    Optional Docker-Container-Bezug (Image/Name) für Dienste hinter Proxies.
+    """
+    __tablename__ = "services"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), index=True
+    )
+    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    proto: Mapped[str] = mapped_column(String(10), default="tcp")
+
+    bind_address: Mapped[Optional[str]] = mapped_column(String(64))
+    bind_scope: Mapped[str] = mapped_column(String(16), default="lan")  # localhost | lan | all
+
+    process_name: Mapped[Optional[str]] = mapped_column(String(200))
+    process_path: Mapped[Optional[str]] = mapped_column(String(500))
+    sbom_pkg: Mapped[Optional[str]] = mapped_column(String(300))         # aufgelöstes SBOM-Paket
+
+    container_name: Mapped[Optional[str]] = mapped_column(String(200))
+    container_image: Mapped[Optional[str]] = mapped_column(String(300))
+
+    source: Mapped[Optional[str]] = mapped_column(String(100))
+    scanned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("asset_id", "port", "proto", "bind_address", name="uq_service_asset_port"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # IP-Netzwerke (I-Layer: definierte Subnetze mit Namen)
 # ---------------------------------------------------------------------------
 
