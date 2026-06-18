@@ -254,7 +254,9 @@ export const api = {
   processes: {
     list: () => req<Process[]>('/processes'),
     get: (id: string) => req<Process>(`/processes/${id}`),
+    create: (body: object) => req<Process>('/processes', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: object) => req<Process>(`/processes/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+    delete: (id: string) => req<void>(`/processes/${id}`, { method: 'DELETE' }),
     risk: (id: string) => req<CVERisk>(`/processes/${id}/cve-risk`),
     assets: (id: string) => req<any[]>(`/processes/${id}/assets`),
   },

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Owner, type AppEntity } from '../api/client'
 import Badge from '../components/Badge'
 import BasisDiagram from '../components/BasisDiagram'
-import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2, Workflow } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
@@ -504,8 +504,74 @@ function ProcessRow({ process }: { process: any }) {
 // Hauptseite
 // ---------------------------------------------------------------------------
 
+function NewProcessModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({
+    name: '', description: '', criticality: 3,
+    sla_rto_hours: '', sla_rpo_hours: '', owner_id: '' as string | null,
+  })
+  const [error, setError] = useState('')
+
+  const create = useMutation({
+    mutationFn: () => api.processes.create({
+      name: form.name,
+      description: form.description || null,
+      criticality: form.criticality,
+      sla_rto_hours: form.sla_rto_hours ? Number(form.sla_rto_hours) : null,
+      sla_rpo_hours: form.sla_rpo_hours ? Number(form.sla_rpo_hours) : null,
+      owner_id: form.owner_id || null,
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['processes'] }); onClose() },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-bold flex items-center gap-2"><Workflow size={18} /> Neuer Prozess</h2>
+        <input className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          placeholder="Name des Prozesses" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} autoFocus />
+        <textarea className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-300 focus:outline-none resize-none"
+          placeholder="Beschreibung (optional)" rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Kritikalität</label>
+            <select className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              value={form.criticality} onChange={e => setForm({ ...form, criticality: +e.target.value })}>
+              {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}/5</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">RTO (Std.)</label>
+            <input type="number" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              placeholder="4" value={form.sla_rto_hours} onChange={e => setForm({ ...form, sla_rto_hours: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">RPO (Std.)</label>
+            <input type="number" className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-300 focus:outline-none"
+              placeholder="1" value={form.sla_rpo_hours} onChange={e => setForm({ ...form, sla_rpo_hours: e.target.value })} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Owner</label>
+          <OwnerPicker value={form.owner_id} onChange={id => setForm({ ...form, owner_id: id })} />
+        </div>
+        {error && <div className="text-xs text-red-400">{error}</div>}
+        <div className="flex gap-2 justify-end pt-1">
+          <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-200 px-3 py-2">Abbrechen</button>
+          <button onClick={() => create.mutate()} disabled={!form.name || create.isPending}
+            className="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-4 py-2 rounded-lg">
+            <Plus size={14} /> {create.isPending ? 'Anlegen…' : 'Anlegen'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Processes() {
   const [showOwnerMgmt, setShowOwnerMgmt] = useState(false)
+  const [showNewProc, setShowNewProc] = useState(false)
   const { data: processes = [], isLoading } = useQuery({
     queryKey: ['processes'],
     queryFn: api.processes.list,
@@ -517,15 +583,23 @@ export default function Processes() {
         <div>
           <h1 className="text-2xl font-bold">Business-Prozesse</h1>
           <p className="text-sm text-gray-500 mt-1">
-            B → A → S → I → S
+            B → A → C → S → H → I
           </p>
         </div>
-        <button
-          onClick={() => setShowOwnerMgmt(true)}
-          className="flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-700"
-        >
-          <User size={14} /> Owner verwalten
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowOwnerMgmt(true)}
+            className="flex items-center gap-2 text-sm bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-700"
+          >
+            <User size={14} /> Owner verwalten
+          </button>
+          <button
+            onClick={() => setShowNewProc(true)}
+            className="flex items-center gap-2 text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg"
+          >
+            <Plus size={14} /> Neuer Prozess
+          </button>
+        </div>
       </div>
 
       {isLoading && <div className="text-gray-500">Laden…</div>}
@@ -533,12 +607,13 @@ export default function Processes() {
         {processes.map((p: any) => <ProcessRow key={p.id} process={p} />)}
         {!isLoading && processes.length === 0 && (
           <div className="text-center bg-gray-900 border border-gray-800 rounded-lg p-8 text-gray-500 text-sm">
-            Keine Prozesse vorhanden
+            Keine Prozesse vorhanden — oben rechts „Neuer Prozess" anlegen.
           </div>
         )}
       </div>
 
       {showOwnerMgmt && <OwnerManagement onClose={() => setShowOwnerMgmt(false)} />}
+      {showNewProc && <NewProcessModal onClose={() => setShowNewProc(false)} />}
     </div>
   )
 }
