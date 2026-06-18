@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type Owner, type AppEntity } from '../api/client'
 import Badge from '../components/Badge'
 import BasisDiagram from '../components/BasisDiagram'
-import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2, Workflow } from 'lucide-react'
+import { ChevronDown, ChevronUp, Layers, BarChart2, Plus, Trash2, User, Settings2, Workflow, Pencil } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Hilfsfunktionen
@@ -60,6 +61,7 @@ const TYPE_ICONS: Record<string, string> = {
 
 function ApplicationManager({ processId, owners }: { processId: string; owners: Owner[] }) {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({
     name: '', app_type: 'web', version: '', url: '', description: '',
@@ -193,6 +195,13 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
                 {app.criticality && <span>Krit. {app.criticality}/5</span>}
               </div>
             </div>
+            <button
+              onClick={() => navigate(`/basis?app=${app.id}`)}
+              title="Bearbeiten: Assets, Netz-Elemente, Komponenten verknüpfen"
+              className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors shrink-0"
+            >
+              <Pencil size={12} /> Verknüpfen
+            </button>
             <button
               onClick={() => del.mutate(app.id)}
               className="text-gray-600 hover:text-red-400 transition-colors shrink-0"

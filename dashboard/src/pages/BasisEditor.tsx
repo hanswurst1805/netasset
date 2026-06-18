@@ -9,9 +9,9 @@
  *   Rechte Spalte: Editor für das ausgewählte Element + Asset-Verknüpfung
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronRight, ChevronDown, Plus, Trash2,
   User, Workflow, Settings2, Server, Network, Package,
@@ -550,12 +550,21 @@ type Selection = { type: 'proc' | 'app' | 'new-proc' | 'new-app' | 'new-owner'; 
 export default function BasisEditor() {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [sel, setSel] = useState<Selection | null>(null)
   const [expandedProcs, setExpandedProcs] = useState<Set<string>>(new Set())
 
   const { data: owners = [] } = useQuery({ queryKey: ['basis-owners'], queryFn: api.owners.list })
   const { data: procs = [] }  = useQuery({ queryKey: ['basis-procs'],  queryFn: api.procs.list })
   const { data: apps = [] }   = useQuery({ queryKey: ['basis-apps'],   queryFn: () => api.apps.list() })
+
+  // Vorauswahl per ?app=<id> (z.B. aus der Business-Prozesse-Seite verlinkt)
+  const appParam = searchParams.get('app')
+  useEffect(() => {
+    if (appParam && (apps as any[]).some(a => a.id === appParam)) {
+      setSel({ type: 'app', id: appParam })
+    }
+  }, [appParam, apps])
   const { data: assets = [] } = useQuery({ queryKey: ['assets-all'],    queryFn: api.assets.list })
 
   const delProc = useMutation({ mutationFn: (id: string) => api.procs.delete(id), onSuccess: () => qc.invalidateQueries({ queryKey: ['basis-procs'] }) })
