@@ -26,7 +26,7 @@ from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
     Application, ApplicationComponent, Asset, BusinessProcess, CVEEntry, CVEImpact,
-    ProcessAsset, SBOMEntry,
+    ProcessApplication, ProcessAsset, SBOMEntry,
 )
 
 log = logging.getLogger(__name__)
@@ -445,7 +445,12 @@ async def process_risk(
         # 1. Bevorzugt: Komponenten-basiert (Fachanwendung → genutztes Paket)
         app_ids = (await session.execute(
             select(Application.id).where(
-                Application.process_id == proc.id, Application.is_active == True
+                Application.is_active == True,
+                Application.id.in_(
+                    select(ProcessApplication.application_id).where(
+                        ProcessApplication.process_id == proc.id
+                    )
+                ),
             )
         )).scalars().all()
 

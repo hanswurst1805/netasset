@@ -1,8 +1,8 @@
 /**
  * BASIS-Editor
  *
- * Ermöglicht das freie Anlegen von Prozessen und Anwendungen.
- * Anwendungen werden mit Assets verknüpft → S/H/I-Layer automatisch.
+ * Ermöglicht das freie Anlegen von Prozessen und Fachanwendungen.
+ * Fachanwendungen werden mit Assets/Netzen verknüpft → C/S/H/I-Layer automatisch.
  *
  * Aufbau:
  *   Linke Spalte: Baum O → B → A
@@ -42,6 +42,17 @@ const api = {
     autodiscover: (appId: string) => apiFetch(`/api/v1/applications/${appId}/components/autodiscover`, { method: 'POST' }),
     confirm:      (appId: string, cid: string) => apiFetch(`/api/v1/applications/${appId}/components/${cid}/confirm`, { method: 'POST' }),
     delete:       (appId: string, cid: string) => apiFetch(`/api/v1/applications/${appId}/components/${cid}`, { method: 'DELETE' }),
+  },
+  networks:  { list: () => apiFetch('/api/v1/networks') },
+  gateways:  { list: () => apiFetch('/api/v1/gateways') },
+  appNets: {
+    get: (appId: string) => apiFetch(`/api/v1/applications/${appId}/networks`),
+    set: (appId: string, b: any) => apiFetch(`/api/v1/applications/${appId}/networks`, { method: 'PUT', body: JSON.stringify(b) }),
+  },
+  appProcs: {
+    list:   (appId: string) => apiFetch(`/api/v1/applications/${appId}/processes`),
+    attach: (appId: string, processId: string) => apiFetch(`/api/v1/applications/${appId}/processes`, { method: 'POST', body: JSON.stringify({ process_id: processId }) }),
+    detach: (appId: string, processId: string) => apiFetch(`/api/v1/applications/${appId}/processes/${processId}`, { method: 'DELETE' }),
   },
 }
 
@@ -168,7 +179,7 @@ function ProcessEditor({ proc, owners, onSaved }: any) {
 }
 
 // ---------------------------------------------------------------------------
-// Editor-Panel: Anwendung + Asset-Verknüpfung
+// Editor-Panel: Fachanwendung + Asset-/Netz-Verknüpfung
 // ---------------------------------------------------------------------------
 
 function AppEditor({ app, processId, assets, onSaved }: any) {
@@ -211,7 +222,7 @@ function AppEditor({ app, processId, assets, onSaved }: any) {
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold flex items-center gap-2 text-green-400">
-        <Settings2 size={14} /> {app?.id ? 'Anwendung bearbeiten' : 'Neue Anwendung'}
+        <Settings2 size={14} /> {app?.id ? 'Fachanwendung bearbeiten' : 'Neue Fachanwendung'}
         {form.process_id && <span className="text-xs text-gray-500 font-normal ml-1">(A-Layer)</span>}
       </h3>
 
@@ -309,8 +320,117 @@ function AppEditor({ app, processId, assets, onSaved }: any) {
         <Check size={14} /> {save.isPending ? 'Speichern…' : 'Speichern'}
       </button>
 
-      {/* Komponenten (C-Layer) – nur bei bestehender App */}
+      {/* Nur bei bestehender Fachanwendung */}
+      {app?.id && <NetworkLinker appId={app.id} />}
+      {app?.id && <ProcessLinker appId={app.id} currentProcessId={form.process_id} />}
       {app?.id && <ComponentManager appId={app.id} />}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Netz-Elemente verknüpfen (IP-Netze + Gateways)
+// ---------------------------------------------------------------------------
+
+function NetworkLinker({ appId }: { appId: string }) {
+  const qc = useQueryClient()
+  const key = ['app-nets', appId]
+  const { data: links } = useQuery({ queryKey: key, queryFn: () => api.appNets.get(appId) })
+  const { data: nets = [] } = useQuery({ queryKey: ['networks'], queryFn: api.networks.list })
+  const { data: gws = [] } = useQuery({ queryKey: ['gateways'], queryFn: api.gateways.list })
+
+  const netIds: string[] = links?.ip_network_ids || []
+  const gwIds: string[] = links?.gateway_ids || []
+
+  const save = useMutation({
+    mutationFn: (b: any) => api.appNets.set(appId, b),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  })
+  const toggle = (kind: 'net' | 'gw', id: string) => {
+    if (kind === 'net') {
+      const next = netIds.includes(id) ? netIds.filter(x => x !== id) : [...netIds, id]
+      save.mutate({ ip_network_ids: next, gateway_ids: gwIds })
+    } else {
+      const next = gwIds.includes(id) ? gwIds.filter(x => x !== id) : [...gwIds, id]
+      save.mutate({ ip_network_ids: netIds, gateway_ids: next })
+    }
+  }
+
+  return (
+    <div className="border-t border-gray-800 pt-3 mt-1">
+      <label className="text-xs font-semibold text-red-400 flex items-center gap-1 mb-2">
+        <Network size={11} /> Netz-Elemente <span className="text-gray-600 font-normal">(I-Layer)</span>
+      </label>
+      <div className="text-xs text-gray-500 mb-1">IP-Netze</div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {nets.length === 0 && <span className="text-xs text-gray-700">keine Netze definiert</span>}
+        {nets.map((n: any) => (
+          <button key={n.id} onClick={() => toggle('net', n.id)}
+            className={`text-xs px-2 py-0.5 rounded border ${netIds.includes(n.id)
+              ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
+            {n.name} <span className="text-gray-600">{n.cidr}</span>
+          </button>
+        ))}
+      </div>
+      <div className="text-xs text-gray-500 mb-1">Gateways</div>
+      <div className="flex flex-wrap gap-1">
+        {gws.length === 0 && <span className="text-xs text-gray-700">keine Gateways definiert</span>}
+        {gws.map((g: any) => (
+          <button key={g.id} onClick={() => toggle('gw', g.id)}
+            className={`text-xs px-2 py-0.5 rounded border ${gwIds.includes(g.id)
+              ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600'}`}>
+            {g.name || g.hostname || g.id.slice(0, 8)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// In Prozesse "reinziehen" (n:m)
+// ---------------------------------------------------------------------------
+
+function ProcessLinker({ appId, currentProcessId }: { appId: string; currentProcessId?: string }) {
+  const qc = useQueryClient()
+  const key = ['app-procs', appId]
+  const { data: attached = [] } = useQuery({ queryKey: key, queryFn: () => api.appProcs.list(appId) })
+  const { data: allProcs = [] } = useQuery({ queryKey: ['basis-procs'], queryFn: api.procs.list })
+  const [sel, setSel] = useState('')
+  const invalidate = () => { qc.invalidateQueries({ queryKey: key }); qc.invalidateQueries({ queryKey: ['basis-apps'] }) }
+  const attach = useMutation({ mutationFn: (pid: string) => api.appProcs.attach(appId, pid), onSuccess: () => { invalidate(); setSel('') } })
+  const detach = useMutation({ mutationFn: (pid: string) => api.appProcs.detach(appId, pid), onSuccess: invalidate })
+
+  const attachedIds = new Set(attached.map((p: any) => p.id))
+  const available = (allProcs as any[]).filter(p => !attachedIds.has(p.id))
+
+  return (
+    <div className="border-t border-gray-800 pt-3 mt-1">
+      <label className="text-xs font-semibold text-blue-400 flex items-center gap-1 mb-2">
+        <Workflow size={11} /> Genutzt von Prozessen <span className="text-gray-600 font-normal">(reinziehen)</span>
+      </label>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {attached.length === 0 && <span className="text-xs text-gray-700">noch keinem Prozess zugeordnet</span>}
+        {attached.map((p: any) => (
+          <span key={p.id} className="flex items-center gap-1 text-xs bg-blue-900/40 text-blue-300 border border-blue-800 px-2 py-0.5 rounded">
+            {p.name}
+            {p.id !== currentProcessId && (
+              <button onClick={() => detach.mutate(p.id)} className="hover:text-red-400"><X size={9} /></button>
+            )}
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <select className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none"
+          value={sel} onChange={e => setSel(e.target.value)}>
+          <option value="">— Prozess wählen —</option>
+          {available.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <button onClick={() => sel && attach.mutate(sel)} disabled={!sel || attach.isPending}
+          className="text-xs bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white px-2 rounded">
+          <Plus size={11} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -454,7 +574,7 @@ export default function BasisEditor() {
       <div className="mb-5">
         <h1 className="text-2xl font-bold">BASIS Editor</h1>
         <p className="text-sm text-gray-500 mt-1">
-          BASIS (Business · Application · Service · Infrastructure · Systems) — Prozesse und Anwendungen anlegen, Assets verknüpfen
+          BASIS — Prozesse und Fachanwendungen anlegen, Assets und Netz-Elemente verknüpfen
         </p>
       </div>
 
@@ -503,7 +623,7 @@ export default function BasisEditor() {
                     </button>
                   </div>
 
-                  {/* A – Anwendungen */}
+                  {/* A – Fachanwendungen */}
                   {expanded && pApps.map((a: any) => (
                     <TreeItem key={a.id}
                       label={`${TYPE_ICONS[a.app_type] || '📦'} ${a.name}`}
@@ -515,7 +635,7 @@ export default function BasisEditor() {
                   ))}
                   {expanded && pApps.length === 0 && (
                     <div className="text-xs text-gray-700 py-1" style={{ paddingLeft: '24px' }}>
-                      Keine Anwendungen — + klicken
+                      Keine Fachanwendungen — + klicken
                     </div>
                   )}
                 </div>
@@ -577,7 +697,7 @@ export default function BasisEditor() {
                   </div>
                 ))}
                 {appsForProc(selProc!.id).length === 0 && (
-                  <p className="text-gray-700">Noch keine Anwendungen</p>
+                  <p className="text-gray-700">Noch keine Fachanwendungen</p>
                 )}
               </div>
             </div>
@@ -585,7 +705,7 @@ export default function BasisEditor() {
             <div className="flex flex-col items-center justify-center h-full text-gray-700 text-xs text-center">
               <Network size={24} className="mb-2 opacity-30" />
               <p>Layer-Vorschau erscheint</p>
-              <p>wenn eine Anwendung ausgewählt ist</p>
+              <p>wenn eine Fachanwendung ausgewählt ist</p>
             </div>
           )}
         </div>
@@ -595,7 +715,7 @@ export default function BasisEditor() {
 }
 
 // ---------------------------------------------------------------------------
-// Layer-Vorschau für eine Anwendung
+// Layer-Vorschau für eine Fachanwendung
 // ---------------------------------------------------------------------------
 
 function AppLayerPreview({ app, assets }: { app: any; assets: any[] }) {

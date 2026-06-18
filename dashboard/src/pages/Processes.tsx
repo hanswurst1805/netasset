@@ -100,13 +100,13 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-500 uppercase tracking-wider">
-          A – Applications ({apps.length})
+          A – Fachanwendungen ({apps.length})
         </span>
         <button
           onClick={() => setShowNew(!showNew)}
           className="flex items-center gap-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded"
         >
-          <Plus size={11} /> Neue App
+          <Plus size={11} /> Neue Fachanwendung
         </button>
       </div>
 
@@ -116,7 +116,7 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
           <div className="grid grid-cols-2 gap-2">
             <input
               className="col-span-2 bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="Name der Anwendung (z.B. Webshop, CRM)"
+              placeholder="Name der Fachanwendung (z.B. Webshop, CRM)"
               value={form.name}
               onChange={e => setForm({ ...form, name: e.target.value })}
             />
@@ -203,7 +203,7 @@ function ApplicationManager({ processId, owners }: { processId: string; owners: 
         ))}
         {apps.length === 0 && !showNew && (
           <p className="text-xs text-gray-600 py-2 text-center">
-            Noch keine Anwendungen — „Neue App" anlegen
+            Noch keine Fachanwendungen — „Neue Fachanwendung" anlegen
           </p>
         )}
       </div>
@@ -400,7 +400,7 @@ function ProcessRow({ process }: { process: any }) {
             <div className="flex gap-1">
               {[
                 { id: 'basis', icon: Layers, label: 'BASIS' },
-                { id: 'apps', icon: Settings2, label: 'Anwendungen' },
+                { id: 'apps', icon: Settings2, label: 'Fachanwendungen' },
                 { id: 'risk', icon: BarChart2, label: 'CVE-Risiko' },
               ].map(({ id, icon: Icon, label }) => (
                 <button
@@ -431,7 +431,7 @@ function ProcessRow({ process }: { process: any }) {
               {!basis && <div className="text-gray-500 text-sm py-4 text-center">Lade…</div>}
               {basis && basis.nodes.length === 0 && (
                 <div className="text-gray-600 text-sm py-4 text-center">
-                  Keine Daten. Anwendungen anlegen und Assets zuordnen.
+                  Keine Daten. Fachanwendungen anlegen und Assets/Netze zuordnen.
                 </div>
               )}
               {basis && basis.nodes.length > 0 && (

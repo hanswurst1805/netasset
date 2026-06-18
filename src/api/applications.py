@@ -15,7 +15,8 @@ from src.core.auth import AuthContext, get_current_user
 from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
-    Application, ApplicationComponent, Asset, BusinessProcess, CVEImpact, SBOMEntry,
+    Application, ApplicationComponent, ApplicationGateway, ApplicationIpNetwork,
+    Asset, BusinessProcess, CVEImpact, IpNetwork, NetworkGateway, ProcessApplication, SBOMEntry,
 )
 
 router = APIRouter()
@@ -41,7 +42,7 @@ class ApplicationCreate(BaseModel):
     app_type: Optional[str] = "web"
     version: Optional[str] = None
     url: Optional[str] = None
-    process_id: uuid.UUID
+    process_id: Optional[uuid.UUID] = None   # optional: Fachanwendung kann ohne Prozess existieren
     owner_id: Optional[uuid.UUID] = None
     criticality: Optional[int] = None
     asset_ids: Optional[list[str]] = None
@@ -82,7 +83,14 @@ async def list_applications(
 ):
     stmt = select(Application).where(Application.is_active == True)
     if process_id:
-        stmt = stmt.where(Application.process_id == process_id)
+        # Zuordnung läuft über process_applications (n:m)
+        stmt = stmt.where(
+            Application.id.in_(
+                select(ProcessApplication.application_id).where(
+                    ProcessApplication.process_id == process_id
+                )
+            )
+        )
     result = await session.execute(stmt.order_by(Application.name))
     return result.scalars().all()
 
@@ -93,13 +101,20 @@ async def create_application(
     session: AsyncSession = Depends(get_session),
     _: AuthContext = Depends(get_current_user),
 ):
-    process = await session.get(BusinessProcess, body.process_id)
-    if not process:
-        raise HTTPException(404, f"Prozess {body.process_id} nicht gefunden")
+    if body.process_id:
+        process = await session.get(BusinessProcess, body.process_id)
+        if not process:
+            raise HTTPException(404, f"Prozess {body.process_id} nicht gefunden")
 
     app = Application(**body.model_dump(exclude_none=True))
     session.add(app)
     await session.flush()
+
+    # n:m-Zuordnung anlegen, wenn ein Prozess angegeben wurde
+    if body.process_id:
+        session.add(ProcessApplication(process_id=body.process_id, application_id=app.id))
+        await session.flush()
+
     await session.refresh(app)
     return app
 
@@ -364,3 +379,116 @@ async def autodiscover_components(
 
     await session.flush()
     return [await _resolve_component(c, session) for c in created]
+
+
+# ===========================================================================
+# Fachanwendung ↔ Prozess (n:m) – "reinziehen"
+# ===========================================================================
+
+class ProcessRef(BaseModel):
+    process_id: uuid.UUID
+
+
+@router.get("/{app_id}/processes")
+async def list_app_processes(
+    app_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    rows = (await session.execute(
+        select(BusinessProcess.id, BusinessProcess.name, BusinessProcess.criticality)
+        .join(ProcessApplication, ProcessApplication.process_id == BusinessProcess.id)
+        .where(ProcessApplication.application_id == app_id)
+        .order_by(BusinessProcess.name)
+    )).all()
+    return [{"id": str(i), "name": n, "criticality": c} for i, n, c in rows]
+
+
+@router.post("/{app_id}/processes", status_code=201)
+async def attach_process(
+    app_id: uuid.UUID,
+    body: ProcessRef,
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    """Zieht eine Fachanwendung in einen Prozess (idempotent)."""
+    if not await session.get(Application, app_id):
+        raise HTTPException(404, "Fachanwendung nicht gefunden")
+    if not await session.get(BusinessProcess, body.process_id):
+        raise HTTPException(404, "Prozess nicht gefunden")
+    exists = (await session.execute(
+        select(ProcessApplication).where(
+            ProcessApplication.application_id == app_id,
+            ProcessApplication.process_id == body.process_id,
+        )
+    )).scalar_one_or_none()
+    if not exists:
+        session.add(ProcessApplication(process_id=body.process_id, application_id=app_id))
+        await session.flush()
+    return {"status": "ok"}
+
+
+@router.delete("/{app_id}/processes/{process_id}", status_code=204)
+async def detach_process(
+    app_id: uuid.UUID,
+    process_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    row = (await session.execute(
+        select(ProcessApplication).where(
+            ProcessApplication.application_id == app_id,
+            ProcessApplication.process_id == process_id,
+        )
+    )).scalar_one_or_none()
+    if row:
+        await session.delete(row)
+
+
+# ===========================================================================
+# Fachanwendung ↔ Netz-Elemente (IP-Netze + Gateways)
+# ===========================================================================
+
+class NetworkLinks(BaseModel):
+    ip_network_ids: list[uuid.UUID] = []
+    gateway_ids: list[uuid.UUID] = []
+
+
+@router.get("/{app_id}/networks", response_model=NetworkLinks)
+async def get_network_links(
+    app_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    nets = (await session.execute(
+        select(ApplicationIpNetwork.network_id).where(ApplicationIpNetwork.application_id == app_id)
+    )).scalars().all()
+    gws = (await session.execute(
+        select(ApplicationGateway.gateway_id).where(ApplicationGateway.application_id == app_id)
+    )).scalars().all()
+    return NetworkLinks(ip_network_ids=list(nets), gateway_ids=list(gws))
+
+
+@router.put("/{app_id}/networks", response_model=NetworkLinks)
+async def set_network_links(
+    app_id: uuid.UUID,
+    body: NetworkLinks,
+    session: AsyncSession = Depends(get_session),
+    _: AuthContext = Depends(get_current_user),
+):
+    """Setzt die verknüpften Netz-Elemente (ersetzt die bestehenden)."""
+    if not await session.get(Application, app_id):
+        raise HTTPException(404, "Fachanwendung nicht gefunden")
+
+    from sqlalchemy import delete as sa_delete
+    await session.execute(sa_delete(ApplicationIpNetwork).where(ApplicationIpNetwork.application_id == app_id))
+    await session.execute(sa_delete(ApplicationGateway).where(ApplicationGateway.application_id == app_id))
+
+    for nid in dict.fromkeys(body.ip_network_ids):
+        if await session.get(IpNetwork, nid):
+            session.add(ApplicationIpNetwork(application_id=app_id, network_id=nid))
+    for gid in dict.fromkeys(body.gateway_ids):
+        if await session.get(NetworkGateway, gid):
+            session.add(ApplicationGateway(application_id=app_id, gateway_id=gid))
+    await session.flush()
+    return body

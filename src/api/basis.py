@@ -24,7 +24,8 @@ from src.core.auth import AuthContext, get_current_user
 from src.core.components import component_condition
 from src.core.database import get_session
 from src.models.all_models import (
-    Application, ApplicationComponent, Asset, BusinessProcess, Owner, ProcessAsset, SBOMEntry
+    Application, ApplicationComponent, Asset, BusinessProcess, Owner,
+    ProcessApplication, ProcessAsset, SBOMEntry
 )
 
 router = APIRouter()
@@ -121,7 +122,14 @@ async def get_basis(
     # -----------------------------------------------------------------------
     app_stmt = (
         select(Application)
-        .where(Application.process_id == process_id, Application.is_active == True)
+        .where(
+            Application.is_active == True,
+            Application.id.in_(
+                select(ProcessApplication.application_id).where(
+                    ProcessApplication.process_id == process_id
+                )
+            ),
+        )
     )
     applications = (await session.execute(app_stmt)).scalars().all()
 

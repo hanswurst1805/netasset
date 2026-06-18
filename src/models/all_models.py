@@ -102,9 +102,11 @@ class Application(Base):
     version: Mapped[Optional[str]] = mapped_column(String(100))
     url: Mapped[Optional[str]] = mapped_column(String(500))
 
-    # Zugehöriger Prozess
-    process_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("business_processes.id", ondelete="CASCADE"), index=True
+    # Primärer/erster Prozess (Abwärtskompatibilität). Die maßgebliche
+    # Prozess-Zuordnung läuft über process_applications (n:m).
+    process_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("business_processes.id", ondelete="SET NULL"),
+        index=True, nullable=True
     )
 
     # Optionaler Owner auf App-Ebene (kann abweichen vom Prozess-Owner)
@@ -168,6 +170,48 @@ class ApplicationComponent(Base):
     __table_args__ = (
         UniqueConstraint("application_id", "match_kind", "match_value", "asset_id",
                          name="uq_app_component"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fachanwendung ↔ Prozess (n:m) und Fachanwendung ↔ Netz-Elemente
+# Eine Fachanwendung (applications) wird einmal definiert (Assets, Netze,
+# Komponenten) und in beliebig viele Prozesse "reingezogen".
+# ---------------------------------------------------------------------------
+
+class ProcessApplication(Base):
+    """Zuordnung Business-Prozess ↔ Fachanwendung (n:m)."""
+    __tablename__ = "process_applications"
+
+    process_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("business_processes.id", ondelete="CASCADE"), primary_key=True
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ApplicationIpNetwork(Base):
+    """Verknüpfung Fachanwendung ↔ benanntes IP-Netz."""
+    __tablename__ = "application_ip_networks"
+
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), primary_key=True
+    )
+    network_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("ip_networks.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
+class ApplicationGateway(Base):
+    """Verknüpfung Fachanwendung ↔ Gateway (Router/Firewall)."""
+    __tablename__ = "application_gateways"
+
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), primary_key=True
+    )
+    gateway_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("network_gateways.id", ondelete="CASCADE"), primary_key=True
     )
 
 

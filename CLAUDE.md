@@ -63,7 +63,8 @@ netasset/
 │   ├── 0010_asset_reports.py        ← Lynis/Audit-Reports
 │   ├── 0011_min_confidence.py       ← assets.min_confidence
 │   ├── 0020_audit_sessions.py       ← Jumpbox-Session-Aufzeichnung
-│   └── 0021_application_components.py ← A↔S Zwischenschicht (App nutzt SBOM-Paket)
+│   ├── 0021_application_components.py ← A↔S Zwischenschicht (App nutzt SBOM-Paket)
+│   └── 0022_fachanwendung_links.py   ← Fachanwendung n:m Prozess + Netz-Elemente
 ├── src/
 │   ├── api/
 │   │   ├── assets.py          ← Asset CRUD (mit Tag-Filter, min_confidence)
@@ -150,7 +151,11 @@ H – Hardware      Asset, Rack, Serial/MAC/UUID         [assets]
 I – Infrastructure Netzwerk, Exposure, Ports, VLANs    [ip_networks, gateways]
 ```
 
-**Wichtig:** A-Layer = fachliche Apps (nginx ist S-Layer, nicht A-Layer!)
+**Wichtig:** A-Layer = **Fachanwendung** (Webshop, CRM), nicht die SBOM-Software
+(nginx/openssl = C-/S-Layer). Eine Fachanwendung wird einmal definiert und per
+`process_applications` (n:m) in beliebig viele Prozesse „reingezogen"; sie
+verknüpft Assets (`asset_ids`), Netz-Elemente (`application_ip_networks`,
+`application_gateways`) und Komponenten – der Rest (S/H/I) leitet sich daraus ab.
 
 **A↔S Zwischenschicht (`application_components`):** Mapping „Fachanwendung nutzt
 SBOM-Paket" als Regel auf Paket-Identität (`match_kind`: name/prefix/purl/cpe),
