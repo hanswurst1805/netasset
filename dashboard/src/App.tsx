@@ -15,6 +15,7 @@ import Reporting from './pages/Reporting'
 import CardExport from './pages/CardExport'
 import BasisEditor from './pages/BasisEditor'
 import Sessions from './pages/Sessions'
+import Containers from './pages/Containers'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -49,6 +50,7 @@ export default function App() {
                   <Route path="/cards" element={<CardExport />} />
                   <Route path="/basis" element={<BasisEditor />} />
                   <Route path="/sessions" element={<Sessions />} />
+                  <Route path="/containers" element={<Containers />} />
                 </Routes>
               </Layout>
             </RequireAuth>
