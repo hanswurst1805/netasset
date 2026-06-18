@@ -9,7 +9,7 @@
 Dieses Dokument richtet sich an zwei Zielgruppen:
 
 - **Teil A – Benutzerhandbuch**: Anwender:innen, die mit der Web-GUI arbeiten
-  (Asset-Verwaltung, Security-Reports, OBASHI/Business-Prozesse, Chatbot).
+  (Asset-Verwaltung, Security-Reports, BASIS/Business-Prozesse, Chatbot).
 - **Teil B – Betriebshandbuch**: Administrator:innen, die den Server
   betreiben, deployen und warten (Podman, Caddy, Datenbank, Cron-Jobs,
   Collectors).
@@ -245,14 +245,15 @@ Visuelle Darstellung der Netzwerksegmente und ihrer Übergänge
 
 ---
 
-## A.8 Business-Prozesse & OBASHI (`/processes`, `/basis`)
+## A.8 Business-Prozesse & BASIS (`/processes`, `/basis`)
 
-DRUCKER bildet die OBASHI-Schichten ab:
+DRUCKER bildet die BASIS-Schichten ab:
 
 ```
 O – Owners        Person/Team/Abteilung/Rolle
 B – Business      Prozess, Kritikalität (1–5), RTO/RPO
 A – Application   Fachliche Anwendung (z.B. Webshop, CRM)
+C – Components    Von der Anwendung genutzte SBOM-Pakete (Regel auf Paket-Identität)
 S – System        OS, Middleware, SBOM-Software
 H – Hardware      Asset (Server, Switch, …)
 I – Infrastructure Netzwerk, Exposure, Ports
@@ -265,7 +266,7 @@ I – Infrastructure Netzwerk, Exposure, Ports
 - Pro Prozess (aufklappbar): Name, Owner-Badge, Kritikalitäts-Balken
   (1–5), RTO in Stunden
 - **Sub-Tabs je Prozess**:
-  - **BASIS** – OBASHI-Diagramm des Prozesses
+  - **BASIS** – BASIS-Diagramm des Prozesses (inkl. Components-Ebene)
   - **Anwendungen** – Liste der zugeordneten Applications mit Icon (🌐 web,
     ⚡ api, ⚙ batch, 🔗 integration, 🔧 service, 🖥 desktop, 📱 mobile,
     📦 other), „Neue App"-Button, Löschen pro App
@@ -283,12 +284,50 @@ Detaillierter, dreispaltiger Editor:
   - Prozess: Name, Beschreibung, Kritikalität, RTO/RPO, Owner
   - Anwendung: Name, App-Typ, Version, URL, Owner, Kritikalität,
     Verknüpfung mit Assets (Suchfeld + Checkboxen), SBOM-Vorschau des
-    verknüpften Assets
+    verknüpften Assets, sowie **Komponenten (C-Layer)** mit Auto-Discover
   - Owner: Name, Team, Abteilung, Rolle
 - **Rechts**: BASIS-Layer-Vorschau der ausgewählten Anwendung – zeigt
   Application (Name/Version), System (OS + Top-5-Pakete aus SBOM),
   Hardware (Hostname, Typ je verknüpftem Asset) und Infrastructure
   (Exposure-Level, Top-Ports/Protokoll)
+
+### Schritt für Schritt: Prozess anlegen & Assets verknüpfen
+
+**A) Neuen Business-Prozess anlegen**
+
+1. In der Sidebar **BASIS** öffnen (Baum mit **O – Owners** und
+   **B – Business-Prozesse**).
+2. *(Optional, empfohlen zuerst)* Bei **O – Owners** auf **+** → Name
+   (Pflicht), Team, Abteilung → **Owner anlegen**.
+3. Bei **B – Business-Prozesse** auf **+** → „Neuer Prozess" in der Mitte.
+4. Ausfüllen: **Name** (Pflicht), Beschreibung, **Kritikalität** 1–5,
+   **RTO/RPO** (Std., optional), **Owner** wählen.
+5. **Speichern** – der Prozess erscheint links mit „Kritikalität X/5 · 0 Apps".
+
+**B) Assets verknüpfen** (über eine Fachanwendung des Prozesses; daraus
+leiten sich System-/Hardware-/Infrastruktur-Ebene ab)
+
+1. Den Prozess im Baum über den **Pfeil** aufklappen.
+2. Über die Prozesszeile fahren → **+** (neben dem Mülleimer) → „Neue Anwendung".
+3. App-Felder: **Name** (z. B. „Webshop Frontend"), **Typ**, optional
+   Version/URL.
+4. Abschnitt **„Verknüpfte Assets (S/H/I-Layer)"**: im Suchfeld nach
+   Hostname/IP/Typ suchen, Asset anklicken (grüner Haken + Chip oben).
+   Mehrere möglich; Chip-/×-Klick entfernt wieder. Paket-Symbol zeigt die
+   SBOM des Assets.
+5. **Speichern**.
+
+**C) (Empfohlen) Komponenten zuordnen** – ordnet CVE-Risiko sauber der
+Fachanwendung statt pauschal allen Paketen des Hosts zu
+
+1. Die gespeicherte Anwendung auswählen → Abschnitt **„Komponenten (C-Layer)"**.
+2. **Auto-Discover** → Vorschläge aus der SBOM der verknüpften Assets.
+3. Pro Vorschlag mit **Haken** bestätigen bzw. **Mülleimer** verwerfen;
+   eigene per Paketname (z. B. `openssl`) manuell hinzufügen.
+
+Ergebnis: Die Kette **Owner → Prozess → Anwendung → Komponente → System →
+Infrastruktur** steht und wird im BASIS-Diagramm sowie in den Reports
+(Prozess-Risiko, SBOM-Vulnerabilities, CVE-Impact) ausgewertet.
 
 ---
 

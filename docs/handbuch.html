@@ -187,9 +187,10 @@
 </li>
 <li><a href="#a6-netzwerke-networks">A.6 Netzwerke (/networks)</a></li>
 <li><a href="#a7-netzwerk-topologie-topology">A.7 Netzwerk-Topologie (/topology)</a></li>
-<li><a href="#a8-business-prozesse-obashi-processes-basis">A.8 Business-Prozesse &amp; OBASHI (/processes, /basis)</a><ul>
+<li><a href="#a8-business-prozesse-basis-processes-basis">A.8 Business-Prozesse &amp; BASIS (/processes, /basis)</a><ul>
 <li><a href="#business-prozesse-processes">Business-Prozesse (/processes)</a></li>
 <li><a href="#basis-editor-basis">BASIS-Editor (/basis)</a></li>
+<li><a href="#schritt-fur-schritt-prozess-anlegen-assets-verknupfen">Schritt für Schritt: Prozess anlegen &amp; Assets verknüpfen</a></li>
 </ul>
 </li>
 <li><a href="#a9-karteikarten-cards">A.9 Karteikarten (/cards)</a></li>
@@ -223,7 +224,6 @@
 </li>
 </ul>
 </div>
-
 </nav>
 <main>
 <h1 id="drucker-benutzer-und-betriebshandbuch">DRUCKER – Benutzer- und Betriebshandbuch</h1>
@@ -237,7 +237,7 @@ Inventarisierung und Sicherheitsauswertung.</p>
 <p>Dieses Dokument richtet sich an zwei Zielgruppen:</p>
 <ul>
 <li><strong>Teil A – Benutzerhandbuch</strong>: Anwender:innen, die mit der Web-GUI arbeiten
-  (Asset-Verwaltung, Security-Reports, OBASHI/Business-Prozesse, Chatbot).</li>
+  (Asset-Verwaltung, Security-Reports, BASIS/Business-Prozesse, Chatbot).</li>
 <li><strong>Teil B – Betriebshandbuch</strong>: Administrator:innen, die den Server
   betreiben, deployen und warten (Podman, Caddy, Datenbank, Cron-Jobs,
   Collectors).</li>
@@ -373,17 +373,17 @@ IP-Adresse.</p>
 </table>
 <h3 id="tabs_1">Tabs</h3>
 <ol>
-<li><strong>Details</strong>
-   - Info-Grid: Typ, OS, IP-Adressen, MAC-Adresse
-   - Netzwerk-Zonen als farbige Badges (EXTERN rot, DMZ gelb, INTERN blau)
-   - <strong>CVE-Scan-Ergebnis</strong>: Anzahl geprüfter Pakete, gefundene
-     Schwachstellen, neue CVEs – mit aufklappbaren Paket- und CVE-Listen
-   - <strong>CVE-Risiken</strong>: Top-CVEs, getrennt nach „Software/Pakete" (SBOM-Treffer)
+<li><strong>Details</strong></li>
+<li>Info-Grid: Typ, OS, IP-Adressen, MAC-Adresse</li>
+<li>Netzwerk-Zonen als farbige Badges (EXTERN rot, DMZ gelb, INTERN blau)</li>
+<li><strong>CVE-Scan-Ergebnis</strong>: Anzahl geprüfter Pakete, gefundene
+     Schwachstellen, neue CVEs – mit aufklappbaren Paket- und CVE-Listen</li>
+<li><strong>CVE-Risiken</strong>: Top-CVEs, getrennt nach „Software/Pakete" (SBOM-Treffer)
      und „Netzwerk/System" (Port-bezogen), inkl. Risk-Level, KEV-Flag und
-     betroffenem Paket
-   - <strong>Offene Ports</strong>: Tabelle mit Port, Protokoll, „Erreichbar von"
-     (internet/intern/…)
-   - <strong>SBOM</strong>: aufklappbare, durchsuchbare Paketliste (Paket, Version, Typ,
+     betroffenem Paket</li>
+<li><strong>Offene Ports</strong>: Tabelle mit Port, Protokoll, „Erreichbar von"
+     (internet/intern/…)</li>
+<li><strong>SBOM</strong>: aufklappbare, durchsuchbare Paketliste (Paket, Version, Typ,
      Quelle)</li>
 <li><strong>Verlauf</strong> – Snapshot-Timeline mit täglichen Änderungen (max. 30 Tage),
    Diff-Ansicht zwischen zwei Zeitpunkten</li>
@@ -471,11 +471,12 @@ Asset-Zuordnung.</p>
   Primär-Kennzeichnung (★), Löschen-Button</li>
 </ul>
 <hr />
-<h2 id="a8-business-prozesse-obashi-processes-basis">A.8 Business-Prozesse &amp; OBASHI (<code>/processes</code>, <code>/basis</code>)</h2>
-<p>DRUCKER bildet die OBASHI-Schichten ab:</p>
+<h2 id="a8-business-prozesse-basis-processes-basis">A.8 Business-Prozesse &amp; BASIS (<code>/processes</code>, <code>/basis</code>)</h2>
+<p>DRUCKER bildet die BASIS-Schichten ab:</p>
 <pre><code>O – Owners        Person/Team/Abteilung/Rolle
 B – Business      Prozess, Kritikalität (1–5), RTO/RPO
 A – Application   Fachliche Anwendung (z.B. Webshop, CRM)
+C – Components    Von der Anwendung genutzte SBOM-Pakete (Regel auf Paket-Identität)
 S – System        OS, Middleware, SBOM-Software
 H – Hardware      Asset (Server, Switch, …)
 I – Infrastructure Netzwerk, Exposure, Ports
@@ -487,7 +488,7 @@ I – Infrastructure Netzwerk, Exposure, Ports
 <li>Pro Prozess (aufklappbar): Name, Owner-Badge, Kritikalitäts-Balken
   (1–5), RTO in Stunden</li>
 <li><strong>Sub-Tabs je Prozess</strong>:</li>
-<li><strong>BASIS</strong> – OBASHI-Diagramm des Prozesses</li>
+<li><strong>BASIS</strong> – BASIS-Diagramm des Prozesses (inkl. Components-Ebene)</li>
 <li><strong>Anwendungen</strong> – Liste der zugeordneten Applications mit Icon (🌐 web,
     ⚡ api, ⚙ batch, 🔗 integration, 🔧 service, 🖥 desktop, 📱 mobile,
     📦 other), „Neue App"-Button, Löschen pro App</li>
@@ -504,13 +505,49 @@ I – Infrastructure Netzwerk, Exposure, Ports
 <li>Prozess: Name, Beschreibung, Kritikalität, RTO/RPO, Owner</li>
 <li>Anwendung: Name, App-Typ, Version, URL, Owner, Kritikalität,
     Verknüpfung mit Assets (Suchfeld + Checkboxen), SBOM-Vorschau des
-    verknüpften Assets</li>
+    verknüpften Assets, sowie <strong>Komponenten (C-Layer)</strong> mit Auto-Discover</li>
 <li>Owner: Name, Team, Abteilung, Rolle</li>
 <li><strong>Rechts</strong>: BASIS-Layer-Vorschau der ausgewählten Anwendung – zeigt
   Application (Name/Version), System (OS + Top-5-Pakete aus SBOM),
   Hardware (Hostname, Typ je verknüpftem Asset) und Infrastructure
   (Exposure-Level, Top-Ports/Protokoll)</li>
 </ul>
+<h3 id="schritt-fur-schritt-prozess-anlegen-assets-verknupfen">Schritt für Schritt: Prozess anlegen &amp; Assets verknüpfen</h3>
+<p><strong>A) Neuen Business-Prozess anlegen</strong></p>
+<ol>
+<li>In der Sidebar <strong>BASIS</strong> öffnen (Baum mit <strong>O – Owners</strong> und
+   <strong>B – Business-Prozesse</strong>).</li>
+<li><em>(Optional, empfohlen zuerst)</em> Bei <strong>O – Owners</strong> auf <strong>+</strong> → Name
+   (Pflicht), Team, Abteilung → <strong>Owner anlegen</strong>.</li>
+<li>Bei <strong>B – Business-Prozesse</strong> auf <strong>+</strong> → „Neuer Prozess" in der Mitte.</li>
+<li>Ausfüllen: <strong>Name</strong> (Pflicht), Beschreibung, <strong>Kritikalität</strong> 1–5,
+   <strong>RTO/RPO</strong> (Std., optional), <strong>Owner</strong> wählen.</li>
+<li><strong>Speichern</strong> – der Prozess erscheint links mit „Kritikalität X/5 · 0 Apps".</li>
+</ol>
+<p><strong>B) Assets verknüpfen</strong> (über eine Fachanwendung des Prozesses; daraus
+leiten sich System-/Hardware-/Infrastruktur-Ebene ab)</p>
+<ol>
+<li>Den Prozess im Baum über den <strong>Pfeil</strong> aufklappen.</li>
+<li>Über die Prozesszeile fahren → <strong>+</strong> (neben dem Mülleimer) → „Neue Anwendung".</li>
+<li>App-Felder: <strong>Name</strong> (z. B. „Webshop Frontend"), <strong>Typ</strong>, optional
+   Version/URL.</li>
+<li>Abschnitt <strong>„Verknüpfte Assets (S/H/I-Layer)"</strong>: im Suchfeld nach
+   Hostname/IP/Typ suchen, Asset anklicken (grüner Haken + Chip oben).
+   Mehrere möglich; Chip-/×-Klick entfernt wieder. Paket-Symbol zeigt die
+   SBOM des Assets.</li>
+<li><strong>Speichern</strong>.</li>
+</ol>
+<p><strong>C) (Empfohlen) Komponenten zuordnen</strong> – ordnet CVE-Risiko sauber der
+Fachanwendung statt pauschal allen Paketen des Hosts zu</p>
+<ol>
+<li>Die gespeicherte Anwendung auswählen → Abschnitt <strong>„Komponenten (C-Layer)"</strong>.</li>
+<li><strong>Auto-Discover</strong> → Vorschläge aus der SBOM der verknüpften Assets.</li>
+<li>Pro Vorschlag mit <strong>Haken</strong> bestätigen bzw. <strong>Mülleimer</strong> verwerfen;
+   eigene per Paketname (z. B. <code>openssl</code>) manuell hinzufügen.</li>
+</ol>
+<p>Ergebnis: Die Kette <strong>Owner → Prozess → Anwendung → Komponente → System →
+Infrastruktur</strong> steht und wird im BASIS-Diagramm sowie in den Reports
+(Prozess-Risiko, SBOM-Vulnerabilities, CVE-Impact) ausgewertet.</p>
 <hr />
 <h2 id="a9-karteikarten-cards">A.9 Karteikarten (<code>/cards</code>)</h2>
 <p>Batch-Export von Asset-Daten als „Karteikarten" – aufbereitete
