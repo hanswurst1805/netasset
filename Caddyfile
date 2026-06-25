@@ -1,15 +1,15 @@
 {$DOMAIN} {
     # API + Auth an FastAPI weiterleiten
     handle /api/* {
-        reverse_proxy localhost:8000
+        reverse_proxy {$API_UPSTREAM:localhost:8000}
     }
 
     handle /auth/* {
-        reverse_proxy localhost:8000
+        reverse_proxy {$API_UPSTREAM:localhost:8000}
     }
 
     handle /health {
-        reverse_proxy localhost:8000
+        reverse_proxy {$API_UPSTREAM:localhost:8000}
     }
 
     # Alles andere: React SPA aus dem dist-Verzeichnis

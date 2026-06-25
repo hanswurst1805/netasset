@@ -15,7 +15,9 @@ services:
       retries: 5
 
   api:
-    image: ghcr.io/${GITHUB_REPO}/netasset:${IMAGE_TAG:-latest}
+    # Lokaler Build (docker_start.sh) ODER vorgebautes Image: API_IMAGE in .env.prod setzen.
+    build: .
+    image: ${API_IMAGE:-netasset-api:latest}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://netasset:${DB_PASSWORD}@db:5432/netasset
@@ -34,12 +36,16 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      API_UPSTREAM: api:8000   # im Docker-Netz heißt der API-Container "api"
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"   # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./dashboard/dist:/srv/dashboard:ro   # vom Host gebautes Frontend
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -136,6 +136,7 @@ netasset/
     ├── import_cves.py             ← NVD-Import (--days N)
     ├── daily_snapshots.py         ← Tägliche Snapshots (Cron)
     ├── deploy.sh                  ← Podman-Deployment
+    ├── docker_start.sh            ← Docker-Compose-Deployment (Alternative)
     └── seed_demo_data.py
 ```
 
@@ -298,12 +299,19 @@ bash scripts/server_setup.sh
 # Deployen / Aktualisieren
 bash scripts/deploy.sh deploy   # git pull + Build + Restart + Migration
 
+# Alternativ: Docker statt Podman (Compose)
+bash scripts/docker_start.sh up   # Frontend+Image-Build, Migration, db+api+caddy
+
 # Tägliche Snapshots (Cron 02:00)
 python scripts/daily_snapshots.py
 
 # CVE-Import
 python scripts/import_cves.py --days 7
 ```
+
+**Docker:** `docker-compose.prod.yml` + `scripts/docker_start.sh` (Caddy proxyt
+im Docker-Netz via `API_UPSTREAM=api:8000`; Frontend aus `dashboard/dist` gemountet).
+**Kubernetes:** Referenz-Manifeste + Anleitung unter `docs/kubernetes.md`.
 
 ---
 
