@@ -412,6 +412,37 @@ class Service(Base):
 
 
 # ---------------------------------------------------------------------------
+# Alarme / Detections (z.B. ESET Incident Management)
+# ---------------------------------------------------------------------------
+
+class Alert(Base):
+    """Sicherheits-Alarm/Detection einer externen Quelle (z.B. ESET /v2/detections)."""
+    __tablename__ = "alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Externe ID (Detection-UUID) zur Deduplizierung / Upsert
+    external_id: Mapped[str] = mapped_column(String(128), unique=True, index=True, nullable=False)
+    source: Mapped[str] = mapped_column(String(50), default="eset")
+
+    # Verknüpfung zum Asset (per Geräte-UUID/Hostname aufgelöst, optional)
+    asset_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    device_uuid: Mapped[Optional[str]] = mapped_column(String(128))
+    device_name: Mapped[Optional[str]] = mapped_column(String(255))
+
+    severity: Mapped[Optional[str]] = mapped_column(String(30), index=True)   # HIGH/MEDIUM/LOW/…
+    severity_score: Mapped[Optional[int]] = mapped_column(Integer)
+    threat: Mapped[Optional[str]] = mapped_column(String(500))                # Bedrohungs-/Anzeigename
+    type_name: Mapped[Optional[str]] = mapped_column(String(200))
+    category: Mapped[Optional[str]] = mapped_column(String(120))
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    occurred_at: Mapped[Optional[datetime]] = mapped_column(DateTime, index=True)
+    user_name: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
 # IP-Netzwerke (I-Layer: definierte Subnetze mit Namen)
 # ---------------------------------------------------------------------------
 

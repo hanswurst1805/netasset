@@ -154,6 +154,11 @@ async def _annotate_attention(assets: list[Asset], session: AsyncSession) -> Non
         if sec_updates and sec_updates.isdigit() and int(sec_updates) > 0:
             reasons.append(f"{sec_updates} Security-Updates ausstehend")
 
+        # ESET-Schutzstatus: alles außer "ok" ist ein Alarm
+        eset = next((t for t in tags if t.startswith("eset-status-")), None)
+        if eset and eset != "eset-status-ok" and eset != "eset-status-unknown":
+            reasons.append(f"ESET-Schutzstatus: {eset[len('eset-status-'):].replace('-', ' ')}")
+
         if _is_stale(asset.last_seen_at):
             reasons.append("nicht kürzlich gesehen")
 
