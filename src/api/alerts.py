@@ -63,19 +63,20 @@ class AlertOut(BaseModel):
 
 
 async def _resolve_asset(device_uuid: Optional[str], device_name: Optional[str], session: AsyncSession):
+    """Gibt (asset_id, hostname) zurück – oder (None, None)."""
     if device_uuid:
-        aid = (await session.execute(
-            select(Asset.id).where(func.lower(Asset.chassis_id) == device_uuid.lower()).limit(1)
-        )).scalar_one_or_none()
-        if aid:
-            return aid
+        row = (await session.execute(
+            select(Asset.id, Asset.hostname).where(func.lower(Asset.chassis_id) == device_uuid.lower()).limit(1)
+        )).first()
+        if row:
+            return row[0], row[1]
     if device_name:
-        aid = (await session.execute(
-            select(Asset.id).where(func.lower(Asset.hostname) == device_name.lower()).limit(1)
-        )).scalar_one_or_none()
-        if aid:
-            return aid
-    return None
+        row = (await session.execute(
+            select(Asset.id, Asset.hostname).where(func.lower(Asset.hostname) == device_name.lower()).limit(1)
+        )).first()
+        if row:
+            return row[0], row[1]
+    return None, None
 
 
 @router.post("/ingest", status_code=201)
@@ -92,18 +93,21 @@ async def ingest_alerts(
         existing = (await session.execute(
             select(Alert).where(Alert.external_id == a.external_id)
         )).scalar_one_or_none()
-        asset_id = await _resolve_asset(a.device_uuid, a.device_name, session)
+        asset_id, hostname = await _resolve_asset(a.device_uuid, a.device_name, session)
+        device_name = a.device_name or hostname
         if existing:
             existing.resolved = a.resolved
             existing.severity = a.severity
             existing.severity_score = a.severity_score
             if asset_id:
                 existing.asset_id = asset_id
+            if device_name and not existing.device_name:
+                existing.device_name = device_name
             updated += 1
         else:
             session.add(Alert(
                 external_id=a.external_id, source=a.source, asset_id=asset_id,
-                device_uuid=a.device_uuid, device_name=a.device_name,
+                device_uuid=a.device_uuid, device_name=device_name,
                 severity=a.severity, severity_score=a.severity_score, threat=a.threat,
                 type_name=a.type_name, category=a.category, resolved=a.resolved,
                 occurred_at=_naive(a.occurred_at), user_name=a.user_name,
