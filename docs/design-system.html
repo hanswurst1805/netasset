@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetAsset Design System</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  * { box-sizing: border-box; }
+
+  :root {
+    --bg: #F5F9F6;
+    --surface: #FFFFFF;
+    --surface-sunken: #EEF4F0;
+    --border: #DBE6DF;
+    --border-strong: #C3D3C9;
+
+    --text: #121712;
+    --text-secondary: #56635B;
+    --text-muted: #8A968E;
+
+    --green-900: #0E3B26;
+    --green-700: #176B41;
+    --green-600: #1E8A54;
+    --green-500: #2AA868;
+    --green-100: #E2F1E7;
+    --green-050: #EFF7F1;
+
+    --status-ok: #1E8A54;
+    --status-ok-bg: #E2F1E7;
+    --status-warn: #966A11;
+    --status-warn-bg: #FBF0D9;
+    --status-crit: #A23B31;
+    --status-crit-bg: #FAE4E0;
+    --status-off: #6B7670;
+    --status-off-bg: #EAEEEB;
+
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+
+    --shadow-card: 0 1px 2px rgba(14, 59, 38, 0.06), 0 4px 16px rgba(14, 59, 38, 0.06);
+    --font: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1310;
+      --surface: #141B16;
+      --surface-sunken: #101613;
+      --border: #263029;
+      --border-strong: #354137;
+
+      --text: #E9F1EB;
+      --text-secondary: #A3B0A6;
+      --text-muted: #77857B;
+
+      --green-900: #B9E7C9;
+      --green-700: #4CC886;
+      --green-600: #3FBE7C;
+      --green-500: #34A96D;
+      --green-100: #1B3226;
+      --green-050: #16261C;
+
+      --status-ok: #4CC886;
+      --status-ok-bg: #16311F;
+      --status-warn: #E0B84C;
+      --status-warn-bg: #35290F;
+      --status-crit: #E48678;
+      --status-crit-bg: #3A1712;
+      --status-off: #8E9A92;
+      --status-off-bg: #1C2521;
+
+      --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1310;
+    --surface: #141B16;
+    --surface-sunken: #101613;
+    --border: #263029;
+    --border-strong: #354137;
+    --text: #E9F1EB;
+    --text-secondary: #A3B0A6;
+    --text-muted: #77857B;
+    --green-900: #B9E7C9;
+    --green-700: #4CC886;
+    --green-600: #3FBE7C;
+    --green-500: #34A96D;
+    --green-100: #1B3226;
+    --green-050: #16261C;
+    --status-ok: #4CC886;
+    --status-ok-bg: #16311F;
+    --status-warn: #E0B84C;
+    --status-warn-bg: #35290F;
+    --status-crit: #E48678;
+    --status-crit-bg: #3A1712;
+    --status-off: #8E9A92;
+    --status-off-bg: #1C2521;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 20px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F9F6;
+    --surface: #FFFFFF;
+    --surface-sunken: #EEF4F0;
+    --border: #DBE6DF;
+    --border-strong: #C3D3C9;
+    --text: #121712;
+    --text-secondary: #56635B;
+    --text-muted: #8A968E;
+    --green-900: #0E3B26;
+    --green-700: #176B41;
+    --green-600: #1E8A54;
+    --green-500: #2AA868;
+    --green-100: #E2F1E7;
+    --green-050: #EFF7F1;
+    --status-ok: #1E8A54;
+    --status-ok-bg: #E2F1E7;
+    --status-warn: #966A11;
+    --status-warn-bg: #FBF0D9;
+    --status-crit: #A23B31;
+    --status-crit-bg: #FAE4E0;
+    --status-off: #6B7670;
+    --status-off-bg: #EAEEEB;
+    --shadow-card: 0 1px 2px rgba(14, 59, 38, 0.06), 0 4px 16px rgba(14, 59, 38, 0.06);
+  }
+
+  body { background: var(--bg); }
+
+  .ds-page {
+    font-family: var(--font);
+    color: var(--text);
+    background: var(--bg);
+    max-width: 980px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-5) var(--space-8);
+  }
+
+  .ds-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green-700);
+    margin: 0 0 var(--space-2);
+  }
+  .ds-title {
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    margin: 0 0 var(--space-3);
+    color: var(--text);
+    text-wrap: balance;
+  }
+  .ds-intro {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    max-width: 62ch;
+    margin: 0 0 var(--space-7);
+  }
+
+  .ds-section {
+    margin-bottom: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+  }
+  .ds-section:first-of-type { border-top: none; padding-top: 0; }
+
+  .ds-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+    flex-wrap: wrap;
+  }
+  .ds-h2 {
+    font-size: 21px;
+    font-weight: 800;
+    margin: 0;
+    color: var(--text);
+  }
+  .ds-section-note {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin: 0;
+  }
+
+  /* Color swatches */
+  .ds-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-4);
+  }
+  .ds-swatch {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .ds-swatch-color { height: 64px; }
+  .ds-swatch-meta { padding: var(--space-3); }
+  .ds-swatch-name { font-size: 13px; font-weight: 700; margin: 0 0 2px; }
+  .ds-swatch-hex {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Typography */
+  .ds-type-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-5);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ds-type-row:last-child { border-bottom: none; }
+  .ds-type-label {
+    flex: 0 0 150px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    padding-top: 6px;
+  }
+  .ds-type-sample { color: var(--text); }
+  .ds-type-spec { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  /* Buttons */
+  .ds-row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+  .btn {
+    font-family: var(--font);
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    padding: 10px 18px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--green-700); color: #FFFFFF; }
+  .btn-primary:hover { background: var(--green-600); }
+  .btn-secondary { background: transparent; color: var(--green-700); border-color: var(--border-strong); }
+  .btn-secondary:hover { background: var(--green-050); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+  .btn-ghost:hover { color: var(--text); background: var(--surface-sunken); }
+  .btn-danger { background: transparent; color: var(--status-crit); border-color: var(--status-crit); }
+  .btn-danger:hover { background: var(--status-crit-bg); }
+  .btn-disabled, .btn:disabled { background: var(--surface-sunken); color: var(--text-muted); border-color: var(--border); cursor: not-allowed; }
+  .btn:focus-visible { outline: 2px solid var(--green-500); outline-offset: 2px; }
+
+  /* Cards / Boxen */
+  .ds-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-4);
+  }
+  .ds-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-card);
+  }
+  .ds-card-stat-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin: 0 0 var(--space-2);
+  }
+  .ds-card-stat-value {
+    font-size: 30px;
+    font-weight: 900;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+  .ds-card-stat-delta { font-size: 13px; color: var(--status-ok); margin-top: var(--space-1); font-weight: 700; }
+
+  .ds-asset-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  .ds-asset-name { font-weight: 700; font-size: 15px; margin: 0 0 2px; }
+  .ds-asset-meta { font-size: 13px; color: var(--text-secondary); margin: 0; font-variant-numeric: tabular-nums; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+  }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge-ok { background: var(--status-ok-bg); color: var(--status-ok); }
+  .badge-warn { background: var(--status-warn-bg); color: var(--status-warn); }
+  .badge-crit { background: var(--status-crit-bg); color: var(--status-crit); }
+  .badge-off { background: var(--status-off-bg); color: var(--status-off); }
+
+  /* Forms */
+  .ds-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    max-width: 640px;
+  }
+  .ds-field { display: flex; flex-direction: column; gap: 6px; }
+  .ds-field-full { grid-column: 1 / -1; }
+  .ds-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+  .ds-input, .ds-select {
+    font-family: var(--font);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+  }
+  .ds-input:focus, .ds-select:focus {
+    outline: none;
+    border-color: var(--green-600);
+    box-shadow: 0 0 0 3px var(--green-100);
+  }
+  .ds-checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+
+  /* Table */
+  .ds-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); }
+  table.ds-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); }
+  .ds-table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding: 10px 16px;
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--border);
+  }
+  .ds-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+  }
+  .ds-table tr:last-child td { border-bottom: none; }
+  .ds-table td.mono { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+
+  /* Alerts */
+  .ds-alert {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    font-size: 14px;
+  }
+  .ds-alert-title { font-weight: 700; margin: 0 0 2px; }
+  .ds-alert-body { margin: 0; color: var(--text-secondary); }
+  .ds-alert-ok { background: var(--status-ok-bg); border-color: var(--status-ok); }
+  .ds-alert-ok .ds-alert-title { color: var(--status-ok); }
+  .ds-alert-warn { background: var(--status-warn-bg); border-color: var(--status-warn); }
+  .ds-alert-warn .ds-alert-title { color: var(--status-warn); }
+  .ds-alert-crit { background: var(--status-crit-bg); border-color: var(--status-crit); }
+  .ds-alert-crit .ds-alert-title { color: var(--status-crit); }
+
+  /* Tokens reference table */
+  .ds-token-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: var(--space-3);
+  }
+  .ds-token-box {
+    background: var(--green-050);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    text-align: center;
+  }
+  .ds-token-swatch { background: var(--green-600); margin: 0 auto var(--space-2); }
+  .ds-token-name { font-size: 11px; color: var(--text-muted); font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn { transition: none; }
+  }
+
+  @media (max-width: 560px) {
+    .ds-form { grid-template-columns: 1fr; }
+    .ds-type-row { flex-direction: column; gap: var(--space-2); }
+    .ds-type-label { flex: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ds-page">
+
+  <p class="ds-eyebrow">Design System · NetAsset</p>
+  <h1 class="ds-title">Grün auf Hell, mit klarer Kante</h1>
+  <p class="ds-intro">
+    Ein ruhiges, funktionales System für Dashboards und Verwaltungsoberflächen:
+    helle Fläche, ein Grünton als Handlungsfarbe, Schwarz/Grau für Text, durchgehend
+    Arial. Boxen mit gerundeten Ecken, klare Statusfarben für den schnellen Blick.
+    Details zu den Tokens: <a href="design-system.md">design-system.md</a>.
+  </p>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Farbpalette</h2>
+      <p class="ds-section-note">Basis + Grünskala</p>
+    </div>
+    <div class="ds-swatch-grid">
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--bg); border-bottom:1px solid var(--border);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Untergrund</p>
+          <p class="ds-swatch-hex">#F5F9F6</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--surface); border-bottom:1px solid var(--border);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Fläche / Karte</p>
+          <p class="ds-swatch-hex">#FFFFFF</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--text);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Text (Schwarz)</p>
+          <p class="ds-swatch-hex">#121712</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--text-secondary);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Text sekundär</p>
+          <p class="ds-swatch-hex">#56635B</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--green-900);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Grün 900</p>
+          <p class="ds-swatch-hex">#0E3B26</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--green-700);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Grün 700 · Primär</p>
+          <p class="ds-swatch-hex">#176B41</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--green-600);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Grün 600 · Hover</p>
+          <p class="ds-swatch-hex">#1E8A54</p>
+        </div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--green-100); border-bottom:1px solid var(--border);"></div>
+        <div class="ds-swatch-meta">
+          <p class="ds-swatch-name">Grün 100 · Fläche</p>
+          <p class="ds-swatch-hex">#E2F1E7</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Statusfarben</h2>
+      <p class="ds-section-note">Getrennt von der Akzentfarbe, für Zustände</p>
+    </div>
+    <div class="ds-swatch-grid">
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--status-ok);"></div>
+        <div class="ds-swatch-meta"><p class="ds-swatch-name">OK</p><p class="ds-swatch-hex">#1E8A54</p></div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--status-warn);"></div>
+        <div class="ds-swatch-meta"><p class="ds-swatch-name">Warnung</p><p class="ds-swatch-hex">#966A11</p></div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--status-crit);"></div>
+        <div class="ds-swatch-meta"><p class="ds-swatch-name">Kritisch</p><p class="ds-swatch-hex">#A23B31</p></div>
+      </div>
+      <div class="ds-swatch">
+        <div class="ds-swatch-color" style="background:var(--status-off);"></div>
+        <div class="ds-swatch-meta"><p class="ds-swatch-name">Offline</p><p class="ds-swatch-hex">#6B7670</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Typografie</h2>
+      <p class="ds-section-note">Arial durchgehend, Hierarchie über Gewicht &amp; Größe</p>
+    </div>
+    <div class="ds-type-row">
+      <span class="ds-type-label">Display</span>
+      <div>
+        <div class="ds-type-sample" style="font-size:34px; font-weight:900; letter-spacing:-0.01em;">Assets im Blick</div>
+        <div class="ds-type-spec">Arial 900 · 34px</div>
+      </div>
+    </div>
+    <div class="ds-type-row">
+      <span class="ds-type-label">Überschrift H2</span>
+      <div>
+        <div class="ds-type-sample" style="font-size:21px; font-weight:800;">Netzwerk-Exposure</div>
+        <div class="ds-type-spec">Arial 800 · 21px</div>
+      </div>
+    </div>
+    <div class="ds-type-row">
+      <span class="ds-type-label">Überschrift H3</span>
+      <div>
+        <div class="ds-type-sample" style="font-size:16px; font-weight:700;">Offene Konflikte</div>
+        <div class="ds-type-spec">Arial 700 · 16px</div>
+      </div>
+    </div>
+    <div class="ds-type-row">
+      <span class="ds-type-label">Fließtext</span>
+      <div>
+        <div class="ds-type-sample" style="font-size:14px; font-weight:400; color:var(--text-secondary); max-width:52ch;">
+          Server db-prod-02 wurde zuletzt vor 12 Minuten gesehen und liegt in der Zone DMZ.
+        </div>
+        <div class="ds-type-spec">Arial 400 · 14px · Grau</div>
+      </div>
+    </div>
+    <div class="ds-type-row">
+      <span class="ds-type-label">Label / Caption</span>
+      <div>
+        <div class="ds-type-sample" style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted);">Letzter Scan</div>
+        <div class="ds-type-spec">Arial 700 · 12px · Uppercase · 0.08em</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Buttons</h2>
+    </div>
+    <div class="ds-row">
+      <button class="btn btn-primary">Asset anlegen</button>
+      <button class="btn btn-secondary">Bericht exportieren</button>
+      <button class="btn btn-ghost">Abbrechen</button>
+      <button class="btn btn-danger">Asset löschen</button>
+      <button class="btn btn-disabled" disabled>Gesperrt</button>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Boxen &amp; Karten</h2>
+      <p class="ds-section-note">Radius 14px, dezenter Schatten</p>
+    </div>
+    <div class="ds-card-grid">
+      <div class="ds-card">
+        <p class="ds-card-stat-label">Assets gesamt</p>
+        <p class="ds-card-stat-value">248</p>
+        <p class="ds-card-stat-delta">+6 diese Woche</p>
+      </div>
+      <div class="ds-card">
+        <p class="ds-card-stat-label">Offene CVEs</p>
+        <p class="ds-card-stat-value">14</p>
+        <p class="ds-card-stat-delta" style="color:var(--status-crit);">3 kritisch</p>
+      </div>
+      <div class="ds-card">
+        <div class="ds-asset-card">
+          <div>
+            <p class="ds-asset-name">fw-edge-01</p>
+            <p class="ds-asset-meta">10.0.0.1 · Firewall</p>
+          </div>
+          <span class="badge badge-ok">Online</span>
+        </div>
+      </div>
+      <div class="ds-card">
+        <div class="ds-asset-card">
+          <div>
+            <p class="ds-asset-name">db-prod-02</p>
+            <p class="ds-asset-meta">10.0.4.12 · Server</p>
+          </div>
+          <span class="badge badge-warn">Aufmerksamkeit</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Status-Badges</h2>
+    </div>
+    <div class="ds-row">
+      <span class="badge badge-ok">Online</span>
+      <span class="badge badge-warn">Aufmerksamkeit</span>
+      <span class="badge badge-crit">Kritisch</span>
+      <span class="badge badge-off">Offline</span>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Formulare</h2>
+    </div>
+    <div class="ds-form">
+      <div class="ds-field">
+        <label class="ds-label">Hostname</label>
+        <input class="ds-input" type="text" value="db-prod-02" readonly>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label">IP-Adresse</label>
+        <input class="ds-input" type="text" value="10.0.4.12" readonly>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label">Typ</label>
+        <select class="ds-select">
+          <option>Server</option>
+          <option>Switch</option>
+          <option>Firewall</option>
+        </select>
+      </div>
+      <div class="ds-field">
+        <label class="ds-label">Exposure</label>
+        <select class="ds-select">
+          <option>INTERN</option>
+          <option>DMZ</option>
+          <option>EXTERN</option>
+        </select>
+      </div>
+      <div class="ds-field ds-field-full ds-checkbox-row">
+        <input type="checkbox" id="ds-cb" checked>
+        <label for="ds-cb">Für Monitoring aktiv</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Tabelle</h2>
+    </div>
+    <div class="ds-table-wrap">
+      <table class="ds-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>IP</th>
+            <th>Zone</th>
+            <th>Zuletzt gesehen</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>fw-edge-01</td>
+            <td class="mono">10.0.0.1</td>
+            <td>DMZ</td>
+            <td class="mono">vor 2 Min.</td>
+            <td><span class="badge badge-ok">Online</span></td>
+          </tr>
+          <tr>
+            <td>db-prod-02</td>
+            <td class="mono">10.0.4.12</td>
+            <td>INTERN</td>
+            <td class="mono">vor 12 Min.</td>
+            <td><span class="badge badge-warn">Aufmerksamkeit</span></td>
+          </tr>
+          <tr>
+            <td>sw-core-01</td>
+            <td class="mono">10.0.0.2</td>
+            <td>INTERN</td>
+            <td class="mono">vor 3 Std.</td>
+            <td><span class="badge badge-off">Offline</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Hinweise</h2>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:var(--space-3);">
+      <div class="ds-alert ds-alert-ok">
+        <div>
+          <p class="ds-alert-title">Snapshot abgeschlossen</p>
+          <p class="ds-alert-body">248 Assets wurden erfolgreich erfasst.</p>
+        </div>
+      </div>
+      <div class="ds-alert ds-alert-warn">
+        <div>
+          <p class="ds-alert-title">Schutzstatus unspezifiziert</p>
+          <p class="ds-alert-body">3 Assets melden keinen eindeutigen ESET-Status.</p>
+        </div>
+      </div>
+      <div class="ds-alert ds-alert-crit">
+        <div>
+          <p class="ds-alert-title">Kritische CVE gefunden</p>
+          <p class="ds-alert-body">openssl 1.1.1 auf db-prod-02 betrifft 2 Fachanwendungen.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ds-section">
+    <div class="ds-section-head">
+      <h2 class="ds-h2">Radius &amp; Abstand</h2>
+      <p class="ds-section-note">Tokens für Ecken und Zwischenräume</p>
+    </div>
+    <div class="ds-token-grid">
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:36px; height:36px; border-radius:8px;"></div>
+        <div class="ds-token-name">sm · 8px</div>
+      </div>
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:36px; height:36px; border-radius:14px;"></div>
+        <div class="ds-token-name">md · 14px</div>
+      </div>
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:36px; height:36px; border-radius:22px;"></div>
+        <div class="ds-token-name">lg · 22px</div>
+      </div>
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:4px; height:24px; border-radius:2px;"></div>
+        <div class="ds-token-name">space-1–2</div>
+      </div>
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:16px; height:24px; border-radius:2px;"></div>
+        <div class="ds-token-name">space-4</div>
+      </div>
+      <div class="ds-token-box">
+        <div class="ds-token-swatch" style="width:32px; height:24px; border-radius:2px;"></div>
+        <div class="ds-token-name">space-6</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
