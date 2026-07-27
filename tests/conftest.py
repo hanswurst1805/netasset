@@ -72,10 +72,20 @@ async def session(engine):
 
 @pytest_asyncio.fixture
 async def client(session):
+    import uuid as _uuid
+
+    from src.core.auth import AuthContext, get_current_user
     from src.core.database import get_session
     from src.main import app
 
     app.dependency_overrides[get_session] = lambda: session
+    # Alle Endpunkte verlangen Auth – im Test als Admin ohne Tag-Filter.
+    app.dependency_overrides[get_current_user] = lambda: AuthContext(
+        user_id=_uuid.uuid4(),
+        username="test-admin",
+        role="admin",
+        allowed_tags=[],
+    )
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c

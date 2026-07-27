@@ -23,8 +23,14 @@ services:
       DATABASE_URL: postgresql+asyncpg://netasset:${DB_PASSWORD}@db:5432/netasset
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       LLM_MODEL: ${LLM_MODEL:-anthropic/claude-sonnet-4-5}
-      JWT_SECRET: ${JWT_SECRET}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-changeme}
+      # Kein Default: ein fehlender Wert soll auffallen, nicht still auf ein
+      # bekanntes Passwort zurückfallen.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET muss in .env.prod gesetzt sein}
+      # Wird nur beim allerersten Start gebraucht (Anlegen des Admin-Accounts).
+      # Daher hier kein harter Abbruch – die API prüft den Wert genau dann,
+      # wenn sie ihn tatsächlich verwenden würde.
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
       NVD_API_KEY: ${NVD_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

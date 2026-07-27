@@ -11,7 +11,12 @@ from sqlalchemy import select
 
 from src.api import alerts, app_settings, applications, assets, auth, basis, cards, conflicts, cve, discovery, export, gateways, networks, owners, processes, reports, reporting, sbom, services_view, sessions, snapshots
 from src.core.auth import hash_password
-from src.core.config import settings
+from src.core.config import (
+    InsecureConfigError,
+    initial_admin_password_is_weak,
+    settings,
+    validate_startup_settings,
+)
 from src.core.database import async_session_factory
 from src.models.auth import User  # noqa: F401 – sicherstellen dass Modell registriert
 
@@ -25,6 +30,14 @@ async def _ensure_admin():
             select(User).where(User.role == "admin").limit(1)
         )).scalar_one_or_none()
         if not existing:
+            # Nur relevant beim allerersten Start: ein Admin mit bekanntem
+            # Standardpasswort wäre ein offenes Scheunentor.
+            if initial_admin_password_is_weak():
+                raise InsecureConfigError(
+                    "INITIAL_ADMIN_PASSWORD ist nicht gesetzt oder ein bekanntes "
+                    "Standardpasswort – der erste Admin-Account wird nicht angelegt.\n"
+                    "Starkes Passwort setzen und Container/Dienst neu starten."
+                )
             admin = User(
                 username="admin",
                 password_hash=hash_password(settings.initial_admin_password),
@@ -38,6 +51,7 @@ async def _ensure_admin():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_startup_settings()
     await _ensure_admin()
     yield
 
@@ -49,12 +63,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Frontend und API laufen hinter Caddy auf derselben Origin – Cross-Origin
+# wird daher standardmäßig gar nicht erlaubt. Nur wenn ein separater Dienst
+# (z.B. der Betriebsleitfaden) die API im Browser aufruft, dessen Origin in
+# CORS_ORIGINS eintragen.
+if settings.cors_origin_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth.router,      prefix="/auth",            tags=["Auth"])
 app.include_router(assets.router,    prefix="/api/v1/assets",   tags=["Assets"])
