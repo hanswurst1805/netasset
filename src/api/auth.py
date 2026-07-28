@@ -31,6 +31,7 @@ from src.core.auth import (
     verify_totp_code,
 )
 from src.core.database import get_session
+from src.core.ratelimit import login_limiter, mfa_limiter
 from src.models.auth import APIKey, User
 
 router = APIRouter()
@@ -115,6 +116,9 @@ async def login(
     form: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
+    # Bremse VOR der Passwortprüfung – sonst ist die Prüfung selbst das Orakel.
+    login_limiter.check(form.username)
+
     stmt = select(User).where(User.username == form.username, User.is_active == True)
     user = (await session.execute(stmt)).scalar_one_or_none()
     if not user or not verify_password(form.password, user.password_hash):
@@ -123,6 +127,8 @@ async def login(
             "Benutzername oder Passwort falsch",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    login_limiter.reset(form.username)
 
     if user.totp_enabled:
         return TokenResponse(mfa_required=True, mfa_token=create_mfa_token(str(user.id)))
@@ -141,11 +147,16 @@ async def verify_2fa(
     if not user_id:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "2FA-Token ungültig oder abgelaufen")
 
+    # Ohne Bremse wären 6 Ziffern (bei valid_window=1 sogar 3 gültige Codes)
+    # in kurzer Zeit durchprobierbar.
+    mfa_limiter.check(str(user_id))
+
     user = await session.get(User, user_id)
     if not user or not user.is_active or not user.totp_enabled or not user.totp_secret:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "2FA nicht verfügbar")
 
     if verify_totp_code(user.totp_secret, body.code):
+        mfa_limiter.reset(str(user_id))
         token = create_access_token(str(user.id), user.role, user.allowed_tags or [])
         return TokenResponse(access_token=token, role=user.role, allowed_tags=user.allowed_tags or [])
 
@@ -153,6 +164,7 @@ async def verify_2fa(
     if remaining is not None:
         user.totp_backup_codes = remaining
         await session.flush()
+        mfa_limiter.reset(str(user_id))
         token = create_access_token(str(user.id), user.role, user.allowed_tags or [])
         return TokenResponse(access_token=token, role=user.role, allowed_tags=user.allowed_tags or [])
 

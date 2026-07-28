@@ -40,7 +40,7 @@ def generate_api_key() -> tuple[str, str, str]:
 def create_access_token(user_id: str, role: str, allowed_tags: list[str]) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=settings.jwt_expire_hours)
     return jwt.encode(
-        {"sub": user_id, "role": role, "tags": allowed_tags, "exp": expire},
+        {"sub": user_id, "role": role, "tags": allowed_tags, "exp": expire, "scope": "access"},
         settings.jwt_secret,
         algorithm="HS256",
     )
@@ -143,7 +143,16 @@ async def _user_from_jwt(token: str, session: AsyncSession) -> Optional[AuthCont
         payload = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
     except JWTError:
         return None
-    user = await session.get(User, uuid.UUID(payload["sub"]))
+    # Nur echte Access-Tokens zählen. Das Zwischen-Token aus /auth/login
+    # (scope=2fa, vor der TOTP-Prüfung ausgestellt) ist mit demselben Secret
+    # signiert und darf hier NICHT als Login durchgehen.
+    if payload.get("scope", "access") != "access":
+        return None
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    user = await session.get(User, user_id)
     if not user or not user.is_active:
         return None
     return AuthContext(

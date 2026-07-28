@@ -8,10 +8,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.auth import get_current_user
 from src.core.database import get_session
 from src.models.all_models import Asset, SBOMEntry
 
-router = APIRouter()
+# Auth auf Router-Ebene: die SBOM ist die vollständige Softwareliste inkl.
+# Versionen über alle Assets – ohne Auth ist das eine fertige Angriffsvorlage.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class SBOMEntryIn(BaseModel):

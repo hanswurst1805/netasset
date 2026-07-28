@@ -11,13 +11,17 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.auth import get_current_user
 from src.core.database import get_session
 from src.core.identity import ENRICHMENT_SOURCES, DeviceFingerprint, IdentityResolver, MatchResult
 from src.core.network_classifier import classify_asset_and_update
 from src.core.services import bind_scope, resolve_service_pkg
 from src.models.all_models import Asset, ConflictQueueEntry, SBOMEntry, Service
 
-router = APIRouter()
+# Auth auf Router-Ebene: Ingest schreibt direkt in die CMDB (anlegen UND
+# bestehende Assets überschreiben) – das darf nie ungeschützt sein. Collector
+# authentifizieren sich mit ihrem X-API-Key.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class DiscoveredDevice(BaseModel):

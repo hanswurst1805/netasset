@@ -9,10 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.auth import get_current_user
 from src.core.database import get_session
 from src.models.all_models import Asset, BusinessProcess, CVEImpact, ProcessAsset
 
-router = APIRouter()
+# Auth auf Router-Ebene (alle Routen lesen/schreiben Prozessdaten).
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 # ---------------------------------------------------------------------------
