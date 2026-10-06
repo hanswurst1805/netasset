@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.auth import get_current_user
 from src.core.database import get_session
-from src.core.identity import ENRICHMENT_SOURCES, DeviceFingerprint, IdentityResolver, MatchResult
+from src.core.identity import (
+    ENRICHMENT_SOURCES, DeviceFingerprint, IdentityResolver, MatchResult, initial_source_entry,
+)
 from src.core.network_classifier import classify_asset_and_update
 from src.core.services import bind_scope, resolve_service_pkg
 from src.models.all_models import Asset, ConflictQueueEntry, SBOMEntry, Service
@@ -164,7 +166,7 @@ async def ingest_devices(
                 exclude_none=True,
             )
             asset = Asset(**asset_data)
-            asset.sources = [{"origin": device.source, "last_seen": datetime.now(timezone.utc).isoformat()}]
+            asset.sources = [initial_source_entry(device.source, asset_data)]
             asset.last_seen_at = datetime.utcnow()
             session.add(asset)
             await session.flush()

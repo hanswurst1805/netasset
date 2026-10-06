@@ -78,6 +78,20 @@ def _source_prio(source: str) -> int:
     return SOURCE_PRIORITY.get(source, SOURCE_PRIORITY["default"])
 
 
+def initial_source_entry(source: str, data: dict) -> dict:
+    """sources-Eintrag für ein neu angelegtes Asset.
+
+    Enthält Priorität und gesetzte Felder – sonst darf beim nächsten Merge
+    jede Quelle (auch niedrigerer Priorität) diese Felder überschreiben.
+    """
+    return {
+        "origin":    source,
+        "last_seen": datetime.now(timezone.utc).isoformat(),
+        "priority":  _source_prio(source),
+        "fields":    [f for f in PRIORITY_FIELDS if data.get(f) is not None],
+    }
+
+
 def _merge_ports(existing: list | None, new_ports: list | None) -> list:
     """
     Merged zwei Port-Listen (Union).
