@@ -7,7 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.api import alerts, app_settings, applications, assets, auth, basis, cards, conflicts, cve, discovery, export, gateways, networks, owners, processes, reports, reporting, sbom, services_view, sessions, snapshots
 from src.core.auth import hash_password
@@ -23,29 +24,51 @@ from src.models.auth import User  # noqa: F401 – sicherstellen dass Modell reg
 logger = logging.getLogger(__name__)
 
 
+# Beliebige, aber feste Schlüssel für pg_advisory_xact_lock – serialisiert den
+# Admin-Bootstrap zwischen mehreren uvicorn-Workern (--workers N).
+_ADMIN_BOOTSTRAP_LOCK_ID = 0x4E41_0001
+
+
 async def _ensure_admin():
-    """Legt beim ersten Start einen Admin-User an, falls keiner existiert."""
+    """Legt beim ersten Start einen Admin-User an, falls keiner existiert.
+
+    Race-sicher: Bei mehreren Workern starten alle gleichzeitig gegen eine
+    leere DB. Ein Transaction-Advisory-Lock serialisiert die Prüfung, und
+    ON CONFLICT (username) DO NOTHING fängt den Rest ab – kein Worker scheitert
+    mehr mit IntegrityError und reißt den Server herunter.
+    """
     async with async_session_factory() as session:
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(:id)"), {"id": _ADMIN_BOOTSTRAP_LOCK_ID}
+        )
         existing = (await session.execute(
-            select(User).where(User.role == "admin").limit(1)
+            select(User.id).where(User.role == "admin").limit(1)
         )).scalar_one_or_none()
-        if not existing:
-            # Nur relevant beim allerersten Start: ein Admin mit bekanntem
-            # Standardpasswort wäre ein offenes Scheunentor.
-            if initial_admin_password_is_weak():
-                raise InsecureConfigError(
-                    "INITIAL_ADMIN_PASSWORD ist nicht gesetzt oder ein bekanntes "
-                    "Standardpasswort – der erste Admin-Account wird nicht angelegt.\n"
-                    "Starkes Passwort setzen und Container/Dienst neu starten."
-                )
-            admin = User(
+        if existing:
+            await session.rollback()  # gibt den Lock frei
+            return
+        # Nur relevant beim allerersten Start: ein Admin mit bekanntem
+        # Standardpasswort wäre ein offenes Scheunentor.
+        if initial_admin_password_is_weak():
+            raise InsecureConfigError(
+                "INITIAL_ADMIN_PASSWORD ist nicht gesetzt oder ein bekanntes "
+                "Standardpasswort – der erste Admin-Account wird nicht angelegt.\n"
+                "Starkes Passwort setzen und Container/Dienst neu starten."
+            )
+        result = await session.execute(
+            pg_insert(User)
+            .values(
                 username="admin",
                 password_hash=hash_password(settings.initial_admin_password),
                 role="admin",
                 allowed_tags=[],
             )
-            session.add(admin)
-            await session.commit()
+            .on_conflict_do_nothing(index_elements=["username"])
+            .returning(User.id)
+        )
+        created = result.scalar_one_or_none() is not None
+        await session.commit()
+        if created:
             logger.info("Admin-User angelegt (Passwort aus INITIAL_ADMIN_PASSWORD)")
 
 
