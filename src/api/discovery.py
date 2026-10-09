@@ -37,8 +37,10 @@ class DiscoveredDevice(BaseModel):
     asset_type: str = "server"
     os_name: Optional[str] = None
     os_version: Optional[str] = None
+    os_arch: Optional[str] = None
     manufacturer: Optional[str] = None
     model: Optional[str] = None
+    firmware_version: Optional[str] = None
     exposure_level: str = "INTERN"
     open_ports: Optional[list] = None
     tags: Optional[list[str]] = None

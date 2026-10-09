@@ -53,6 +53,10 @@ export interface Asset {
   asset_type: string
   os_name: string | null
   os_version: string | null
+  os_arch?: string | null
+  manufacturer?: string | null
+  model?: string | null
+  firmware_version?: string | null
   exposure_level: 'INTERN' | 'DMZ' | 'EXTERN'
   open_ports: { port: number; proto: string; reachable_from: string[] }[] | null
   tags: string[] | null

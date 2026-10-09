@@ -522,6 +522,8 @@ export default function AssetDetail() {
           ['OS',   `${asset.os_name ?? '—'} ${asset.os_version ?? ''}`],
           ['IP',   [asset.ip_address, ...((asset as any).additional_ips ?? [])].filter(Boolean).join(', ') || '—'],
           ['MAC',  asset.mac_address ?? '—'],
+          ['Gerät', [asset.manufacturer, asset.model].filter(Boolean).join(' ') || '—'],
+          ['Firmware / Arch', [asset.firmware_version, asset.os_arch].filter(Boolean).join(' · ') || '—'],
         ].map(([label, value]) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <div className="text-xs text-gray-500 mb-1">{label}</div>

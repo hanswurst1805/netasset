@@ -75,6 +75,10 @@ class AssetOut(BaseModel):
     asset_type: str
     os_name: Optional[str]
     os_version: Optional[str]
+    os_arch: Optional[str] = None
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    firmware_version: Optional[str] = None
     additional_ips: Optional[list[str]] = None
     exposure_level: str
     network_zones: Optional[list[str]]
