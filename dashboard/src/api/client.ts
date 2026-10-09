@@ -1,3 +1,5 @@
+import { withBase } from '../basePath'
+
 const BASE = '/api/v1'
 const AUTH = '/auth'
 
@@ -27,7 +29,7 @@ async function req<T>(path: string, opts?: RequestInit & { auth?: boolean }): Pr
   const res = await fetch((opts?.auth ? AUTH : BASE) + path, { ...opts, headers })
   if (res.status === 401) {
     localStorage.removeItem('token')
-    window.location.href = '/login'
+    window.location.href = withBase('/login')
     throw new Error('Nicht authentifiziert')
   }
   if (!res.ok) {

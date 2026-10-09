@@ -8,6 +8,7 @@ import LastSeen from '../components/LastSeen'
 import SnapshotTimeline from '../components/SnapshotTimeline'
 import ReportViewer from '../components/ReportViewer'
 import { AlertTriangle } from 'lucide-react'
+import { withBase } from '../basePath'
 
 // Aufklappbare SBOM-Liste
 function SbomSection({ sbom }: { sbom: any[] }) {
@@ -714,7 +715,7 @@ export default function AssetDetail() {
               </button>
               {cardPreview && (
                 <a
-                  href={`/api/v1/cards/assets/${id}`}
+                  href={withBase(`/api/v1/cards/assets/${id}`)}
                   onClick={async e => {
                     e.preventDefault()
                     const res = await fetch(`/api/v1/cards/assets/${id}`, {
