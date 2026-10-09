@@ -171,3 +171,27 @@ async def test_discovery_ingest_merge(client: AsyncClient):
     }])
     assert resp.status_code == 200
     assert resp.json()[0]["action"] == "merged"
+
+
+async def test_discovery_created_fields_keep_priority(client: AsyncClient):
+    # Fritz!Box-Collector (Prio 65) legt das Asset an …
+    resp = await client.post("/api/v1/discovery/ingest", json=[{
+        "hostname": "fritzbox",
+        "ip_address": "192.168.178.1",
+        "mac_address": "48:5d:35:3e:1e:9e",
+        "asset_type": "firewall",
+        "source": "fritzbox-collector",
+    }])
+    asset_id = resp.json()[0]["asset_id"]
+
+    # … die MikroTik-ARP-Tabelle (Prio 40) darf den Typ nicht überschreiben
+    resp = await client.post("/api/v1/discovery/ingest", json=[{
+        "ip_address": "192.168.178.1",
+        "mac_address": "48:5d:35:3e:1e:9e",
+        "asset_type": "server",
+        "source": "mikrotik-arp",
+    }])
+    assert resp.json()[0]["action"] == "merged"
+
+    asset = (await client.get(f"/api/v1/assets/{asset_id}")).json()
+    assert asset["asset_type"] == "firewall"
