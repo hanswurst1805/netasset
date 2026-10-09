@@ -44,6 +44,7 @@ services:
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN}
+      BL_DOMAIN: ${BL_DOMAIN:-bl.example.com}
       API_UPSTREAM: api:8000   # im Docker-Netz heißt der API-Container "api"
     ports:
       - "80:80"
