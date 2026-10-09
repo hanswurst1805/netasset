@@ -326,7 +326,7 @@ NVD_API_KEY=                    # Optional, erhöht Rate-Limit
 EMBEDDING_MODEL=all-MiniLM-L6-v2
 JWT_SECRET=                     # 32+ zufällige Zeichen
 INITIAL_ADMIN_PASSWORD=         # Wird beim ersten Start gesetzt
-DOMAIN=ocs.kiste.org
+DOMAIN=netasset.example.com
 LOG_LEVEL=INFO
 ```
 

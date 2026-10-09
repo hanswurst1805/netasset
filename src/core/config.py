@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     risk_medium_threshold: float = 4.0
 
     # CORS: kommagetrennte Liste erlaubter Origins, z.B.
-    #   CORS_ORIGINS=https://ocs.kiste.org,https://bl.kiste.org
+    #   CORS_ORIGINS=https://netasset.example.com,https://bl.example.com
     # Leer = keine Cross-Origin-Requests (Standard – Frontend und API laufen
     # hinter Caddy auf derselben Origin, im Dev-Betrieb proxyt Vite).
     cors_origins: str = ""

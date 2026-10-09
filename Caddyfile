@@ -36,8 +36,9 @@
     }
 }
 
-# Integration Betriebsleitfaden (separater Dienst, eigener Container)
-bl.kiste.org {
+# Integration Betriebsleitfaden (separater Dienst, eigener Container).
+# Domain aus BL_DOMAIN (.env.prod) – ohne Wert greift der Platzhalter.
+{$BL_DOMAIN:bl.example.com} {
     reverse_proxy 10.88.0.1:8001
     encode gzip
     header {

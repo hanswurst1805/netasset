@@ -70,6 +70,7 @@ cmd_start() {
         --name netasset-caddy \
         --restart unless-stopped \
         -e "DOMAIN=${DOMAIN}" \
+        -e "BL_DOMAIN=${BL_DOMAIN:-bl.example.com}" \
         -v "$INSTALL_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
         -v "$INSTALL_DIR/dashboard/dist:/srv/dashboard:ro" \
         -v netasset-caddy-data:/data \
