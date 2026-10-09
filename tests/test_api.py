@@ -195,3 +195,22 @@ async def test_discovery_created_fields_keep_priority(client: AsyncClient):
 
     asset = (await client.get(f"/api/v1/assets/{asset_id}")).json()
     assert asset["asset_type"] == "firewall"
+
+
+async def test_discovery_ingest_keeps_firmware_and_arch(client: AsyncClient):
+    # Collectoren senden firmware_version (MikroTik, Fritz!Box) und os_arch
+    # (osquery) – beides muss am Asset ankommen, beim Anlegen und beim Merge.
+    resp = await client.post("/api/v1/discovery/ingest", json=[{
+        "hostname": "rb-fw", "serial_number": "FW-TEST-1", "asset_type": "router",
+        "firmware_version": "7.18", "os_arch": "arm64", "source": "mikrotik-collector",
+    }])
+    asset_id = resp.json()[0]["asset_id"]
+    asset = (await client.get(f"/api/v1/assets/{asset_id}")).json()
+    assert asset["firmware_version"] == "7.18"
+
+    await client.post("/api/v1/discovery/ingest", json=[{
+        "hostname": "rb-fw", "serial_number": "FW-TEST-1", "asset_type": "router",
+        "firmware_version": "7.24.5", "source": "mikrotik-collector",
+    }])
+    asset = (await client.get(f"/api/v1/assets/{asset_id}")).json()
+    assert asset["firmware_version"] == "7.24.5"
