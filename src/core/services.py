@@ -39,7 +39,11 @@ ALL_IFACES = {"0.0.0.0", "::", ""}
 
 
 def bind_scope(address: Optional[str]) -> str:
-    """localhost | all | lan – Erreichbarkeit anhand der Bind-Adresse."""
+    """localhost | all | lan – Erreichbarkeit anhand der Bind-Adresse.
+
+    Collector können zusätzlich explizit `container` melden: Port nur im
+    Container-/Pod-Netz, nicht am Host veröffentlicht.
+    """
     a = (address or "").strip()
     if a in LOCALHOST:
         return "localhost"
