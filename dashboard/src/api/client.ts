@@ -122,7 +122,7 @@ export interface ServiceEntry {
   port: number
   proto: string
   bind_address: string | null
-  bind_scope: 'localhost' | 'lan' | 'all'
+  bind_scope: 'localhost' | 'lan' | 'all' | 'container'
   process_name: string | null
   process_path: string | null
   sbom_pkg: string | null

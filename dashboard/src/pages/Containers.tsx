@@ -21,7 +21,7 @@ interface ServiceRow {
   port: number
   proto: string
   bind_address: string | null
-  bind_scope: 'localhost' | 'lan' | 'all'
+  bind_scope: 'localhost' | 'lan' | 'all' | 'container'
   process_name: string | null
   sbom_pkg: string | null
   container_name: string | null
@@ -33,8 +33,9 @@ const SCOPE_BADGE: Record<string, string> = {
   localhost: 'bg-gray-800 text-gray-400 border-gray-700',
   lan:       'bg-yellow-900/60 text-yellow-300 border-yellow-700',
   all:       'bg-red-900/60 text-red-300 border-red-700',
+  container: 'bg-blue-900/40 text-blue-300 border-blue-800',
 }
-const SCOPE_LABEL: Record<string, string> = { localhost: 'nur localhost', lan: 'LAN', all: 'alle Interfaces' }
+const SCOPE_LABEL: Record<string, string> = { localhost: 'nur localhost', lan: 'LAN', all: 'alle Interfaces', container: 'nur Container-Netz' }
 
 export default function Containers() {
   const navigate = useNavigate()

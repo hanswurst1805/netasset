@@ -856,9 +856,10 @@ function ServicesSection({ assetId }: { assetId: string }) {
     localhost: 'bg-gray-800 text-gray-400 border-gray-700',
     lan:       'bg-yellow-900/60 text-yellow-300 border-yellow-700',
     all:       'bg-red-900/60 text-red-300 border-red-700',
+    container: 'bg-blue-900/40 text-blue-300 border-blue-800',
   }
   const scopeLabel: Record<string, string> = {
-    localhost: 'nur localhost', lan: 'LAN', all: 'alle Interfaces',
+    localhost: 'nur localhost', lan: 'LAN', all: 'alle Interfaces', container: 'nur Container-Netz',
   }
 
   return (
