@@ -49,7 +49,7 @@ export default function Containers() {
 
   const f = filter.trim().toLowerCase()
   const shown = f
-    ? rows.filter(r => [r.hostname, r.ip_address, r.container_image, r.process_name, r.sbom_pkg]
+    ? rows.filter(r => [r.hostname, r.ip_address, r.container_name, r.container_image, r.process_name, r.sbom_pkg]
         .some(v => v?.toLowerCase().includes(f)))
     : rows
 
@@ -67,7 +67,7 @@ export default function Containers() {
         <div className="relative max-w-sm flex-1">
           <Search size={16} className="absolute left-3 top-2.5 text-gray-500" />
           <input value={filter} onChange={e => setFilter(e.target.value)}
-            placeholder="Host, Image, Prozess, Paket…"
+            placeholder="Host, Container, Image, Prozess, Paket…"
             className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded text-sm text-gray-200" />
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
@@ -114,7 +114,14 @@ export default function Containers() {
                       ? <span className="text-xs bg-cyan-900/50 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded">{r.sbom_pkg}</span>
                       : <span className="text-xs text-gray-700">—</span>}
                   </td>
-                  <td className="px-4 py-2 text-gray-400 font-mono text-xs">{r.container_image || r.container_name || '—'}</td>
+                  <td className="px-4 py-2 font-mono text-xs">
+                    {r.container_name || r.container_image ? (
+                      <>
+                        <div className="text-gray-200">{r.container_name || '—'}</div>
+                        {r.container_image && <div className="text-gray-500">{r.container_image}</div>}
+                      </>
+                    ) : <span className="text-gray-700">—</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

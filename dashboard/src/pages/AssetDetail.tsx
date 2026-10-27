@@ -894,7 +894,14 @@ function ServicesSection({ assetId }: { assetId: string }) {
                     ? <span className="text-xs bg-cyan-900/50 text-cyan-300 border border-cyan-800 px-2 py-0.5 rounded">{s.sbom_pkg}</span>
                     : <span className="text-xs text-gray-700">nicht aufgelöst</span>}
                 </td>
-                <td className="px-4 py-2 text-gray-500 font-mono text-xs">{s.container_image || (s.container_name ?? '—')}</td>
+                <td className="px-4 py-2 font-mono text-xs">
+                  {s.container_name || s.container_image ? (
+                    <>
+                      <div className="text-gray-300">{s.container_name || '—'}</div>
+                      {s.container_image && <div className="text-gray-500">{s.container_image}</div>}
+                    </>
+                  ) : <span className="text-gray-500">—</span>}
+                </td>
               </tr>
             ))}
           </tbody>
