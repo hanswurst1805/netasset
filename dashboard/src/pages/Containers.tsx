@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Boxes, Search, Server } from 'lucide-react'
+import ContainerImages from '../components/ContainerImages'
 
 const token = () => localStorage.getItem('token') ?? ''
 
@@ -75,6 +76,8 @@ export default function Containers() {
           nur Container
         </label>
       </div>
+
+      <ContainerImages filter={filter} />
 
       {isLoading ? (
         <p className="text-gray-500">Lädt…</p>

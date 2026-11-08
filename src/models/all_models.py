@@ -622,6 +622,75 @@ class CVEImpact(Base):
 
 
 # ---------------------------------------------------------------------------
+# Container-Images: SBOM + Schwachstellen pro Image
+# ---------------------------------------------------------------------------
+
+class ContainerImage(Base):
+    """Laufendes Container-Image auf einem Host (Docker/Podman)."""
+    __tablename__ = "container_images"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assets.id", ondelete="CASCADE"), index=True
+    )
+    image_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    image_ref: Mapped[str] = mapped_column(String(300), nullable=False)
+    distro: Mapped[Optional[str]] = mapped_column(String(100))        # z. B. "alpine 3.23.6"
+    containers: Mapped[Optional[list]] = mapped_column(JSONB)         # Namen der laufenden Container
+    sbom_at: Mapped[Optional[datetime]] = mapped_column(DateTime)     # letzte Paketliste
+    osv_at: Mapped[Optional[datetime]] = mapped_column(DateTime)      # letzter OSV-Abgleich
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    packages: Mapped[list["ContainerPackage"]] = relationship(
+        back_populates="image", cascade="all, delete-orphan", passive_deletes=True
+    )
+    vulns: Mapped[list["ContainerVuln"]] = relationship(
+        back_populates="image", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("asset_id", "image_id", name="uq_container_image_asset_image"),
+    )
+
+
+class ContainerPackage(Base):
+    """Paket in einem Container-Image (getrennt von der SBOM des Hosts)."""
+    __tablename__ = "container_packages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    image_pk: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("container_images.id", ondelete="CASCADE"), index=True
+    )
+    pkg_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    pkg_version: Mapped[str] = mapped_column(String(200), nullable=False)
+    pkg_type: Mapped[Optional[str]] = mapped_column(String(50))       # apk, deb, pypi, npm, golang …
+    purl: Mapped[Optional[str]] = mapped_column(String(800))
+
+    image: Mapped["ContainerImage"] = relationship(back_populates="packages")
+
+
+class ContainerVuln(Base):
+    """OSV-Treffer in einem Container-Image."""
+    __tablename__ = "container_vulns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    image_pk: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("container_images.id", ondelete="CASCADE"), index=True
+    )
+    vuln_id: Mapped[str] = mapped_column(String(100), nullable=False)  # CVE-ID, sonst OSV-ID
+    osv_id: Mapped[Optional[str]] = mapped_column(String(100))
+    pkg_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    pkg_version: Mapped[str] = mapped_column(String(200), nullable=False)
+    ecosystem: Mapped[Optional[str]] = mapped_column(String(50))
+    severity: Mapped[str] = mapped_column(String(20), default="UNKNOWN")  # CRITICAL … LOW, UNKNOWN
+    cvss: Mapped[Optional[float]] = mapped_column(Float)
+    fixed_version: Mapped[Optional[str]] = mapped_column(String(200))
+    summary: Mapped[Optional[str]] = mapped_column(Text)
+
+    image: Mapped["ContainerImage"] = relationship(back_populates="vulns")
+
+
+# ---------------------------------------------------------------------------
 # Globale Anwendungseinstellungen (Single-Row, id=1)
 # ---------------------------------------------------------------------------
 
