@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from src.api import alerts, app_settings, applications, assets, auth, basis, cards, conflicts, cve, discovery, export, gateways, networks, owners, processes, reports, reporting, sbom, services_view, sessions, snapshots
+from src.api import alerts, app_settings, applications, assets, auth, basis, cards, conflicts, container_images, cve, discovery, export, gateways, networks, owners, processes, reports, reporting, sbom, services_view, sessions, snapshots
 from src.core.auth import hash_password
 from src.core.config import (
     InsecureConfigError,
@@ -118,6 +118,7 @@ app.include_router(discovery.router, prefix="/api/v1/discovery", tags=["Discover
 app.include_router(app_settings.router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(sessions.router,     prefix="/api/v1/sessions",       tags=["Audit Sessions"])
 app.include_router(services_view.router, prefix="/api/v1/services",       tags=["Services / Container"])
+app.include_router(container_images.router, prefix="/api/v1/container-images", tags=["Container-Images"])
 app.include_router(alerts.router,        prefix="/api/v1/alerts",         tags=["Alarme"])
 
 
