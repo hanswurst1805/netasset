@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -172,17 +173,42 @@ def vuln_rating(vuln: dict) -> tuple[Optional[float], str]:
     return None, "UNKNOWN"
 
 
-def fixed_version(vuln: dict, ecosystem: str, name: str) -> Optional[str]:
-    fixed = None
-    for aff in vuln.get("affected") or []:
-        pkg = aff.get("package") or {}
-        if pkg.get("name") != name or pkg.get("ecosystem") != ecosystem:
-            continue
-        for rng in aff.get("ranges") or []:
-            for event in rng.get("events") or []:
-                if event.get("fixed"):
-                    fixed = event["fixed"]
-    return fixed
+def _version_key(version: str) -> list[int]:
+    """Grober numerischer Vergleichsschlüssel – reicht für Plausibilitätsprüfungen."""
+    return [int(n) for n in re.findall(r"\d+", version)]
+
+
+def _ranges(vuln: dict, ecosystem: str, name: str) -> list[list[dict]]:
+    return [
+        rng.get("events") or []
+        for aff in vuln.get("affected") or []
+        if (aff.get("package") or {}).get("name") == name
+        and (aff.get("package") or {}).get("ecosystem") == ecosystem
+        for rng in aff.get("ranges") or []
+    ]
+
+
+def has_inverted_range(vuln: dict, ecosystem: str, name: str) -> bool:
+    """OSV-Datenfehler: alle Bereiche enden, bevor sie beginnen (Fix älter als Einführung)."""
+    ranges = _ranges(vuln, ecosystem, name)
+    if not ranges:
+        return False
+    for events in ranges:
+        introduced = [e["introduced"] for e in events if e.get("introduced") not in (None, "0")]
+        fixed = [e["fixed"] for e in events if e.get("fixed")]
+        if not (introduced and fixed and _version_key(fixed[-1]) < _version_key(introduced[-1])):
+            return False
+    return True
+
+
+def fixed_version(vuln: dict, ecosystem: str, name: str, installed: str = "") -> Optional[str]:
+    """Kleinste Fix-Version oberhalb der installierten (sonst die zuletzt genannte)."""
+    fixes = [e["fixed"] for events in _ranges(vuln, ecosystem, name) for e in events if e.get("fixed")]
+    if not fixes:
+        return None
+    current = _version_key(installed)
+    newer = [f for f in fixes if _version_key(f) > current]
+    return min(newer, key=_version_key) if newer else fixes[-1]
 
 
 def canonical_id(vuln: dict) -> str:
@@ -272,14 +298,14 @@ async def scan_images(image_pks: list[uuid.UUID]) -> dict:
 
                 findings: dict[tuple[str, str], ContainerVuln] = {}
                 for key, ids in zip(keys, id_lists):
-                    eco, name, _ = key
+                    eco, name, version = key
                     for osv_id in ids:
                         vuln = cache.get(osv_id)
-                        if vuln is None or vuln.get("withdrawn"):
+                        if vuln is None or vuln.get("withdrawn") or has_inverted_range(vuln, eco, name):
                             continue
                         canon = canonical_id(vuln)
                         cvss, severity = vuln_rating(vuln)
-                        fixed = fixed_version(vuln, eco, name)
+                        fixed = fixed_version(vuln, eco, name, version)
                         current = findings.get((canon, name))
                         if current is not None:
                             # Mehrere Advisories zum selben CVE: das aussagekräftigste behalten

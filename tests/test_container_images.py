@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from src.ingest.container_scan import (
-    canonical_id, cvss3_base_score, fixed_version, osv_query_for, vuln_rating,
+    canonical_id, cvss3_base_score, fixed_version, has_inverted_range, osv_query_for, vuln_rating,
 )
 
 
@@ -62,6 +62,31 @@ def test_vuln_rating_and_fix():
     assert fixed_version(vuln, "Debian:12", "openssl") is None
     assert vuln_rating({"database_specific": {"severity": "MODERATE"}}) == (None, "MEDIUM")
     assert vuln_rating({"id": "X"}) == (None, "UNKNOWN")
+
+
+def _affected(*ranges):
+    return {"affected": [{"package": {"name": "perl", "ecosystem": "Alpine:v3.22"},
+                          "ranges": [{"events": e} for e in ranges]}]}
+
+
+def test_inverted_range_is_detected():
+    # Echter OSV-Datensatz: ALPINE-CVE-2018-18311
+    assert has_inverted_range(_affected([{"introduced": "5.28.0"}, {"fixed": "5.26.3-r0"}]), "Alpine:v3.22", "perl")
+    assert not has_inverted_range(_affected([{"introduced": "0"}, {"fixed": "5.26.3-r0"}]), "Alpine:v3.22", "perl")
+    assert not has_inverted_range(_affected([{"introduced": "5.0"}]), "Alpine:v3.22", "perl")
+    assert not has_inverted_range(_affected(
+        [{"introduced": "5.28.0"}, {"fixed": "5.26.3-r0"}],
+        [{"introduced": "5.30.0"}, {"fixed": "5.40.5-r0"}],
+    ), "Alpine:v3.22", "perl")
+
+
+def test_fixed_version_picks_next_fix():
+    vuln = _affected(
+        [{"introduced": "1.25.0"}, {"fixed": "1.26.9"}],
+        [{"introduced": "1.27.0"}, {"fixed": "1.27.2"}],
+    )
+    assert fixed_version(vuln, "Alpine:v3.22", "perl", "1.26.8") == "1.26.9"
+    assert fixed_version(vuln, "Alpine:v3.22", "perl", "1.27.1") == "1.27.2"
 
 
 async def _new_asset(client: AsyncClient, name: str) -> str:
